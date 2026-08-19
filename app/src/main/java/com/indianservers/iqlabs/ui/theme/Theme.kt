@@ -9,35 +9,42 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
 private val DarkColorScheme = darkColorScheme(
-    primary = Purple80,
-    secondary = PurpleGrey80,
-    tertiary = Pink80
+    primary = LabCyan,
+    secondary = LabViolet,
+    tertiary = LabLime,
+    background = LabNavy,
+    surface = LabPanel,
+    surfaceVariant = LabNavy2,
+    onPrimary = LabInk,
+    onSecondary = Color.White,
+    onTertiary = LabInk,
+    onBackground = Color(0xFFF3FAFF),
+    onSurface = Color(0xFFF3FAFF),
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40
-
-    /* Other default colors to override
-    background = Color(0xFFFFFBFE),
-    surface = Color(0xFFFFFBFE),
+    primary = Color(0xFF006B85),
+    secondary = Color(0xFF654CC8),
+    tertiary = Color(0xFF4E7A19),
+    background = LabMist,
+    surface = Color.White,
+    surfaceVariant = Color(0xFFDDEDF6),
     onPrimary = Color.White,
     onSecondary = Color.White,
     onTertiary = Color.White,
-    onBackground = Color(0xFF1C1B1F),
-    onSurface = Color(0xFF1C1B1F),
-    */
+    onBackground = LabInk,
+    onSurface = LabInk,
 )
 
 @Composable
 fun IQLabsTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Dynamic color is available on Android 12+
-    dynamicColor: Boolean = true,
+    dynamicColor: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val colorScheme = when {
