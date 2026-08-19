@@ -67,6 +67,8 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -96,6 +98,7 @@ import com.indianservers.iqlabs.model.GameDefinition
 import com.indianservers.iqlabs.model.ImplementationStatus
 import com.indianservers.iqlabs.model.IqCatalog
 import com.indianservers.iqlabs.model.LevelId
+import com.indianservers.iqlabs.ui.theme.AppColorTheme
 import com.indianservers.iqlabs.ui.theme.IQLabsTheme
 import java.time.Instant
 import java.time.LocalDate
@@ -144,6 +147,9 @@ private class ProgressStore(context: Context) {
     var difficultyMode: DifficultyMode
         get() = DifficultyMode.valueOf(prefs.getString("difficultyMode", DifficultyMode.Adaptive.name) ?: DifficultyMode.Adaptive.name)
         set(value) = prefs.edit().putString("difficultyMode", value.name).apply()
+    var appColorTheme: AppColorTheme
+        get() = runCatching { AppColorTheme.valueOf(prefs.getString("appColorTheme", AppColorTheme.SimpleWhite.name) ?: AppColorTheme.SimpleWhite.name) }.getOrDefault(AppColorTheme.SimpleWhite)
+        set(value) = prefs.edit().putString("appColorTheme", value.name).apply()
     fun best(id: String): Int? = prefs.getInt("best_$id", -1).takeIf { it >= 0 }
     fun setBest(id: String, score: Int) = prefs.edit().putInt("best_$id", score).apply()
     fun sessions(): Int = prefs.getInt("sessions", 0)
@@ -191,12 +197,14 @@ private fun IqLabApp() {
     var haptics by rememberSaveable { mutableStateOf(store.haptics) }
     var reducedMotion by rememberSaveable { mutableStateOf(store.reducedMotion) }
     var difficultyMode by rememberSaveable { mutableStateOf(store.difficultyMode) }
+    var appColorTheme by rememberSaveable { mutableStateOf(store.appColorTheme) }
     var metrics by remember { mutableStateOf(store.metrics()) }
 
     fun go(next: Screen) { screen = next }
     fun finishOnboarding() { store.onboardingDone = true; screen = Screen.Main() }
 
-    when (val current = screen) {
+    IQLabsTheme(appColorTheme = appColorTheme) {
+        when (val current = screen) {
         Screen.Onboarding -> OnboardingScreen(::finishOnboarding)
         is Screen.Main -> MainShell(
             tab = current.tab,
@@ -208,6 +216,7 @@ private fun IqLabApp() {
             haptics = haptics,
             reducedMotion = reducedMotion,
             difficultyMode = difficultyMode,
+            appColorTheme = appColorTheme,
             metrics = metrics,
             onTab = { go(Screen.Main(it)) },
             onLevel = { go(Screen.LevelDetails(it)) },
@@ -222,6 +231,7 @@ private fun IqLabApp() {
             onHaptics = { haptics = it; store.haptics = it },
             onReducedMotion = { reducedMotion = it; store.reducedMotion = it },
             onDifficultyMode = { difficultyMode = it; store.difficultyMode = it },
+            onAppColorTheme = { appColorTheme = it; store.appColorTheme = it },
         )
         is Screen.LevelDetails -> LevelDetailsScreen(current.level, xp, { go(Screen.Main(Tab.Games)) }, { go(Screen.GameDetails(it)) })
         is Screen.GameDetails -> GameDetailsScreen(IqCatalog.game(current.id), store.best(current.id), difficultyMode, { difficultyMode = it; store.difficultyMode = it }, { go(Screen.Main(Tab.Games)) }, { go(Screen.Play(current.id, sessions + 7)) })
@@ -247,6 +257,7 @@ private fun IqLabApp() {
             }
         )
         is Screen.Results -> ResultsScreen(IqCatalog.game(current.id), current.result, { go(Screen.Play(current.id, sessions + 11)) }, { go(Screen.Main(Tab.Games)) })
+        }
     }
 }
 
@@ -261,6 +272,7 @@ private fun MainShell(
     haptics: Boolean,
     reducedMotion: Boolean,
     difficultyMode: DifficultyMode,
+    appColorTheme: AppColorTheme,
     metrics: List<SessionMetric>,
     onTab: (Tab) -> Unit,
     onLevel: (LevelId) -> Unit,
@@ -272,6 +284,7 @@ private fun MainShell(
     onHaptics: (Boolean) -> Unit,
     onReducedMotion: (Boolean) -> Unit,
     onDifficultyMode: (DifficultyMode) -> Unit,
+    onAppColorTheme: (AppColorTheme) -> Unit,
 ) {
     Scaffold(
         bottomBar = {
@@ -287,7 +300,7 @@ private fun MainShell(
                 Tab.Home -> HomeScreen(xp, streak, sessions, onLevel, onGame)
                 Tab.Games -> CatalogueScreen(favorites, onGame, onFavorite)
                 Tab.Progress -> ProgressScreen(xp, streak, sessions, metrics)
-                Tab.Settings -> SettingsScreen(sound, haptics, reducedMotion, difficultyMode, onSound, onHaptics, onReducedMotion, onDifficultyMode, onReplayOnboarding, onReset)
+                Tab.Settings -> SettingsScreen(sound, haptics, reducedMotion, difficultyMode, appColorTheme, onSound, onHaptics, onReducedMotion, onDifficultyMode, onAppColorTheme, onReplayOnboarding, onReset)
             }
         }
     }
@@ -562,6 +575,7 @@ private fun PlayScreen(game: GameDefinition, seed: Int, difficultyMode: Difficul
     var index by rememberSaveable { mutableIntStateOf(0) }
     var correct by rememberSaveable { mutableIntStateOf(0) }
     var incorrect by rememberSaveable { mutableIntStateOf(0) }
+    var consecutiveIncorrect by rememberSaveable { mutableIntStateOf(0) }
     var combo by rememberSaveable { mutableIntStateOf(0) }
     var bestCombo by rememberSaveable { mutableIntStateOf(0) }
     var feedback by rememberSaveable { mutableStateOf<String?>(null) }
@@ -576,6 +590,11 @@ private fun PlayScreen(game: GameDefinition, seed: Int, difficultyMode: Difficul
                 Text("Tier ${parameters.tier} · ${ScoreEngine.score(correct, incorrect, bestCombo, parameters.tier, 12)}")
             }
             LinearProgressIndicator(progress = { index / questions.size.toFloat() }, modifier = Modifier.fillMaxWidth().height(8.dp).clip(CircleShape))
+            RoundProgressStars(
+                completed = correct + incorrect,
+                total = questions.size,
+                accent = game.accent,
+            )
             if (!started) {
                 AccentCard(game.accent) {
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -595,7 +614,8 @@ private fun PlayScreen(game: GameDefinition, seed: Int, difficultyMode: Difficul
                 Button(onClick = { paused = false }, modifier = Modifier.fillMaxWidth()) { Text("Resume") }
             } else {
                 val question = questions[index]
-                QuestionCard(game, question, feedback) { answer ->
+                val adaptiveHint = adaptiveHintFor(game, question, consecutiveIncorrect)
+                val answerHandler: (String) -> Unit = { answer ->
                     val ok = answer == question.answer
                     val nextCorrect = correct + if (ok) 1 else 0
                     val nextIncorrect = incorrect + if (ok) 0 else 1
@@ -603,14 +623,20 @@ private fun PlayScreen(game: GameDefinition, seed: Int, difficultyMode: Difficul
                     val nextBestCombo = maxOf(bestCombo, nextCombo)
                     correct = nextCorrect
                     incorrect = nextIncorrect
+                    consecutiveIncorrect = if (ok) 0 else consecutiveIncorrect + 1
                     combo = nextCombo
                     bestCombo = nextBestCombo
-                    feedback = if (ok) "Correct. ${question.detail}" else "Not quite. ${question.detail}"
+                    feedback = roundFeedback(game, ok, question.detail)
                     if (index == questions.lastIndex) {
                         val score = ScoreEngine.score(nextCorrect, nextIncorrect, nextBestCombo, parameters.tier, 12)
                         val xp = ScoreEngine.xp(nextCorrect, nextIncorrect, parameters.tier, game.xpReward)
                         onComplete(GameResult(score, nextCorrect, nextIncorrect, xp, nextBestCombo, false))
                     } else index++
+                }
+                if (game.id == "maze-scout") {
+                    MazeSwipeQuestionCard(game, question, feedback, adaptiveHint, answerHandler)
+                } else {
+                    QuestionCard(game, question, feedback, adaptiveHint, answerHandler)
                 }
                 OutlinedButton(onClick = { paused = true }, modifier = Modifier.fillMaxWidth()) { Text("Pause") }
             }
@@ -698,12 +724,33 @@ private fun ProgressScreen(xp: Int, streak: Int, sessions: Int, metrics: List<Se
 }
 
 @Composable
-private fun SettingsScreen(sound: Boolean, haptics: Boolean, reducedMotion: Boolean, difficultyMode: DifficultyMode, onSound: (Boolean) -> Unit, onHaptics: (Boolean) -> Unit, onReducedMotion: (Boolean) -> Unit, onDifficultyMode: (DifficultyMode) -> Unit, onReplayOnboarding: () -> Unit, onReset: () -> Unit) {
+private fun SettingsScreen(sound: Boolean, haptics: Boolean, reducedMotion: Boolean, difficultyMode: DifficultyMode, appColorTheme: AppColorTheme, onSound: (Boolean) -> Unit, onHaptics: (Boolean) -> Unit, onReducedMotion: (Boolean) -> Unit, onDifficultyMode: (DifficultyMode) -> Unit, onAppColorTheme: (AppColorTheme) -> Unit, onReplayOnboarding: () -> Unit, onReset: () -> Unit) {
     var textScale by rememberSaveable { mutableStateOf(.5f) }
     var colorBlind by rememberSaveable { mutableStateOf(false) }
     var confirmReset by rememberSaveable { mutableStateOf(false) }
     LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item { Text("Settings", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Black) }
+        item {
+            AccentCard(MaterialTheme.colorScheme.primary) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Color theme", fontWeight = FontWeight.Bold)
+                    Text("Simple White is the default clean UI. Other themes keep the same layout with different accents.", color = MaterialTheme.colorScheme.onSurface.copy(alpha = .72f))
+                    AppColorTheme.entries.chunked(3).forEach { rowThemes ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            rowThemes.forEach { theme ->
+                                FilterChip(
+                                    selected = appColorTheme == theme,
+                                    onClick = { onAppColorTheme(theme) },
+                                    label = { Text(theme.label, maxLines = 1) },
+                                    modifier = Modifier.weight(1f),
+                                )
+                            }
+                            repeat(3 - rowThemes.size) { Spacer(Modifier.weight(1f)) }
+                        }
+                    }
+                }
+            }
+        }
         item { ToggleRow("Sound effects", sound, onSound) }
         item { ToggleRow("Haptics", haptics, onHaptics) }
         item { ToggleRow("Reduced motion", reducedMotion, onReducedMotion) }
@@ -760,14 +807,100 @@ private fun SettingsScreen(sound: Boolean, haptics: Boolean, reducedMotion: Bool
 }
 
 @Composable
-private fun QuestionCard(game: GameDefinition, question: Question, feedback: String?, onAnswer: (String) -> Unit) {
+private fun QuestionCard(game: GameDefinition, question: Question, feedback: String?, adaptiveHint: String?, onAnswer: (String) -> Unit) {
     AccentCard(game.accent) {
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Text(question.prompt, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            AnimatedVisibility(adaptiveHint != null) {
+                Text(
+                    adaptiveHint.orEmpty(),
+                    modifier = Modifier.clip(RoundedCornerShape(12.dp)).background(game.accent.copy(alpha = .14f)).padding(12.dp),
+                    color = game.accent,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
             question.choices.forEach { choice ->
                 Button(onClick = { onAnswer(choice) }, modifier = Modifier.fillMaxWidth().height(50.dp), shape = RoundedCornerShape(12.dp)) { Text(choice, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
             AnimatedVisibility(feedback != null) { Text(feedback.orEmpty(), color = game.accent) }
+        }
+    }
+}
+
+@Composable
+private fun MazeSwipeQuestionCard(game: GameDefinition, question: Question, feedback: String?, adaptiveHint: String?, onAnswer: (String) -> Unit) {
+    var dragTotal by remember { mutableStateOf(Offset.Zero) }
+    AccentCard(game.accent) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            Text(question.prompt, style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+            AnimatedVisibility(adaptiveHint != null) {
+                Text(
+                    adaptiveHint.orEmpty(),
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(game.accent.copy(alpha = .14f)).padding(12.dp),
+                    color = game.accent,
+                    fontWeight = FontWeight.Bold,
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(170.dp)
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(game.accent.copy(alpha = .10f))
+                    .border(1.dp, game.accent.copy(alpha = .45f), RoundedCornerShape(18.dp))
+                    .semantics { contentDescription = "Swipe up, right, down, or left to choose the next safe path step" }
+                    .pointerInput(question.answer) {
+                        detectDragGestures(
+                            onDragStart = { dragTotal = Offset.Zero },
+                            onDrag = { change, dragAmount ->
+                                change.consume()
+                                dragTotal += dragAmount
+                            },
+                            onDragEnd = {
+                                val answer = if (kotlin.math.abs(dragTotal.x) > kotlin.math.abs(dragTotal.y)) {
+                                    if (dragTotal.x > 0) "Right" else "Left"
+                                } else {
+                                    if (dragTotal.y > 0) "Down" else "Up"
+                                }
+                                onAnswer(answer)
+                            },
+                        )
+                    },
+                contentAlignment = Alignment.Center,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("Swipe the safe step", color = game.accent, fontWeight = FontWeight.Black, fontSize = 20.sp)
+                    Text("↑   →   ↓   ←", color = MaterialTheme.colorScheme.onSurface.copy(alpha = .72f), fontSize = 28.sp)
+                }
+            }
+            Text("Tap fallback", color = MaterialTheme.colorScheme.onSurface.copy(alpha = .66f), fontSize = 12.sp)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                question.choices.forEach { choice ->
+                    OutlinedButton(onClick = { onAnswer(choice) }, modifier = Modifier.weight(1f).height(48.dp), contentPadding = PaddingValues(0.dp)) {
+                        Text(directionGlyph(choice), fontSize = 20.sp)
+                    }
+                }
+            }
+            AnimatedVisibility(feedback != null) { Text(feedback.orEmpty(), color = game.accent) }
+        }
+    }
+}
+
+@Composable
+private fun RoundProgressStars(completed: Int, total: Int, accent: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth().semantics { contentDescription = "$completed of $total rounds complete" },
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        repeat(total) { index ->
+            val active = index < completed
+            Text(
+                text = if (active) "★" else "☆",
+                color = if (active) accent else MaterialTheme.colorScheme.onBackground.copy(alpha = .34f),
+                fontSize = if (active) 24.sp else 21.sp,
+                modifier = Modifier.padding(horizontal = 3.dp),
+            )
         }
     }
 }
@@ -911,6 +1044,34 @@ private fun performanceMessage(result: GameResult) = when {
     result.accuracy >= 90 -> "Excellent accuracy. Your next run can chase speed."
     result.accuracy >= 70 -> "Solid control. A cleaner combo will lift the score."
     else -> "Good practice round. Slow down first, then speed up."
+}
+
+private fun roundFeedback(game: GameDefinition, correct: Boolean, detail: String): String = when {
+    correct && game.level == LevelId.Explorer -> "Great job. $detail"
+    correct -> "Correct. $detail"
+    game.level == LevelId.Explorer -> "Try again next round. $detail"
+    else -> "Not quite. $detail"
+}
+
+private fun adaptiveHintFor(game: GameDefinition, question: Question, consecutiveIncorrect: Int): String? {
+    if (game.level != LevelId.Explorer || consecutiveIncorrect < 2) return null
+    return when {
+        game.id == "maze-scout" -> "Hint: follow the path from left to right, then swipe the missing final direction."
+        question.choices.size == 2 -> "Hint: compare only the current rule with the two answer buttons."
+        game.category == Category.Math -> "Hint: count slowly once, then check the answer choices."
+        game.category == Category.Memory -> "Hint: say the pattern quietly in order before choosing."
+        game.category == Category.Reading -> "Hint: look back at the sentence and find the matching word."
+        game.category == Category.Spatial -> "Hint: match the shape or direction first, then ignore extra details."
+        else -> "Hint: focus on the target word in the question before you choose."
+    }
+}
+
+private fun directionGlyph(direction: String): String = when (direction) {
+    "Up" -> "↑"
+    "Right" -> "→"
+    "Down" -> "↓"
+    "Left" -> "←"
+    else -> direction
 }
 
 @Preview(showBackground = true)

@@ -171,6 +171,18 @@ class CatalogAndEngineTest {
     }
 
     @Test
+    fun mazeScoutGeneratesDirectionalSwipeRounds() {
+        val questions = QuestionFactory.questionsFor(IqCatalog.game("maze-scout"), seed = 17, count = 8, tier = 2)
+        val directions = setOf("Up", "Right", "Down", "Left")
+        assertEquals(8, questions.size)
+        questions.forEach { question ->
+            assertTrue(question.prompt.contains("Swipe"))
+            assertEquals(directions, question.choices.toSet())
+            assertTrue(question.answer in directions)
+        }
+    }
+
+    @Test
     fun scoringXpAndPersonalBestAreStable() {
         val strong = ScoreEngine.score(correct = 6, incorrect = 0, bestCombo = 6, difficulty = 4, secondsRemaining = 10)
         val weak = ScoreEngine.score(correct = 3, incorrect = 3, bestCombo = 1, difficulty = 4, secondsRemaining = 0)

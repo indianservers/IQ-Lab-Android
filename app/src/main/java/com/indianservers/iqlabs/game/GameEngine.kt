@@ -53,6 +53,7 @@ object QuestionFactory {
             "sequence-detective" -> sequenceDetective(random, count, effectiveTier)
             "pattern-pulse" -> patternPulse(random, count, effectiveTier)
             "quick-match" -> quickMatch(random, count)
+            "maze-scout" -> mazeScout(random, count, effectiveTier)
             else -> genericQuestions(game.copy(difficulty = effectiveTier), random, count)
         }
     }
@@ -112,6 +113,21 @@ object QuestionFactory {
             val current = if (random.nextBoolean()) previous else alternatives[random.nextInt(alternatives.size)]
             val answer = if (previous == current) "Match" else "No match"
             Question("Previous: $previous\nCurrent: $current", listOf("Match", "No match"), answer, "Compare current with previous.")
+        }
+    }
+
+    private fun mazeScout(random: Random, count: Int, difficulty: Int): List<Question> {
+        val directions = listOf("Up", "Right", "Down", "Left")
+        return List(count) { round ->
+            val steps = 2 + (difficulty / 3).coerceIn(0, 3)
+            val path = List(steps) { directions[random.nextInt(directions.size)] }
+            val answer = path.last()
+            Question(
+                prompt = "Safe path ${round + 1}: ${path.dropLast(1).joinToString(" → ")} → ?\nSwipe the next safe step.",
+                choices = directions,
+                answer = answer,
+                detail = "The next safe step is $answer.",
+            )
         }
     }
 
