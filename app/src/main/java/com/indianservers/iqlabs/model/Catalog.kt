@@ -67,6 +67,7 @@ object IqCatalog {
         requiredThinker().filterNot { candidate -> any { it.id == candidate.id } }.forEach { add(it) }
         requiredMastermind().filterNot { candidate -> any { it.id == candidate.id } }.forEach { add(it) }
         requiredGenius().filterNot { candidate -> any { it.id == candidate.id } }.forEach { add(it) }
+        analyticalThinkingGames().forEach { add(it) }
 
         val names = listOf(
             "Neon Number Trail", "Mirror Maze", "Logic Lantern", "Shape Compass", "Orbit Oddity", "Word Forge",
@@ -204,6 +205,39 @@ object IqCatalog {
 
     private fun required(id: String, name: String, description: String, level: LevelId, category: Category, tags: List<String>, difficulty: Int, icon: String) =
         playable(id, name, description, level, category, tags, difficulty, 2 + difficulty, 6 + level.ordinal * 2, icon)
+
+    /** A deliberate five-game analytical-thinking pathway at every audience level. */
+    private fun analyticalThinkingGames(): List<GameDefinition> = listOf(
+        required("sort-the-clues", "Sort the Clues", "Group simple clues by a shared property and explain which item does not fit.", LevelId.Explorer, Category.Logic, listOf("analysis-pack", "logic", "classification", "evidence", "untimed"), 1, "▥"),
+        required("pattern-proof", "Pattern Proof", "Choose the observation that best confirms a repeating visual or number rule.", LevelId.Explorer, Category.Logic, listOf("analysis-pack", "logic", "patterns", "evidence", "sequence"), 1, "◇"),
+        required("which-belongs", "Which Belongs?", "Compare four objects and identify the one that belongs to the stated group.", LevelId.Explorer, Category.Logic, listOf("analysis-pack", "logic", "classification", "attention", "visual"), 1, "◉"),
+        required("step-by-step", "Step by Step", "Put a short chain of actions into the only order that makes sense.", LevelId.Explorer, Category.Logic, listOf("analysis-pack", "logic", "planning", "sequence", "untimed"), 2, "123"),
+        required("compare-and-choose", "Compare & Choose", "Compare two options using one clear fact and select the better match.", LevelId.Explorer, Category.Math, listOf("analysis-pack", "math", "comparison", "evidence", "numbers"), 2, "<>"),
+
+        required("evidence-match", "Evidence Match", "Select the fact that most directly supports a short everyday claim.", LevelId.Challenger, Category.Reading, listOf("analysis-pack", "reading", "evidence", "inference", "logic"), 3, "✓"),
+        required("table-detective", "Table Detective", "Read a compact data table and calculate the comparison that answers the question.", LevelId.Challenger, Category.Math, listOf("analysis-pack", "math", "data", "comparison", "calculation"), 3, "▦"),
+        required("rule-eliminator", "Rule Eliminator", "Test candidate rules against examples and eliminate every rule that fails.", LevelId.Challenger, Category.Logic, listOf("analysis-pack", "logic", "deduction", "rules", "evidence"), 3, "×"),
+        required("cause-or-coincidence", "Cause or Coincidence?", "Decide whether an observation demonstrates cause, correlation, or neither.", LevelId.Challenger, Category.Reading, listOf("analysis-pack", "reading", "causality", "evidence", "inference"), 4, "↔"),
+        required("best-next-move", "Best Next Move", "Use the current state and a stated goal to choose the strongest next action.", LevelId.Challenger, Category.Logic, listOf("analysis-pack", "logic", "planning", "decision", "strategy"), 4, "→"),
+
+        required("data-trend-lab", "Data Trend Lab", "Interpret changing values and identify the trend best supported by the data.", LevelId.Thinker, Category.Math, listOf("analysis-pack", "math", "data", "trends", "inference"), 4, "↗"),
+        required("assumption-finder", "Assumption Finder", "Identify the unstated idea an argument needs in order for its conclusion to hold.", LevelId.Thinker, Category.Reading, listOf("analysis-pack", "reading", "assumptions", "argument", "logic"), 4, "?"),
+        required("constraint-mapper", "Constraint Mapper", "Combine several restrictions to determine the only valid arrangement.", LevelId.Thinker, Category.Logic, listOf("analysis-pack", "logic", "constraints", "deduction", "planning"), 5, "▤"),
+        required("probability-judge", "Probability Judge", "Compare possible outcomes and select the event with the strongest probability.", LevelId.Thinker, Category.Math, listOf("analysis-pack", "math", "probability", "comparison", "inference"), 5, "%"),
+        required("argument-builder", "Argument Builder", "Choose the premise that completes a clear and logically valid argument.", LevelId.Thinker, Category.Reading, listOf("analysis-pack", "reading", "argument", "evidence", "inference"), 5, "∴"),
+
+        required("scenario-optimizer", "Scenario Optimizer", "Evaluate competing plans under limits and choose the highest-value feasible option.", LevelId.Mastermind, Category.Logic, listOf("analysis-pack", "logic", "optimization", "constraints", "decision"), 6, "◎"),
+        required("bias-detector", "Bias Detector", "Spot the reasoning bias that most threatens a conclusion or decision.", LevelId.Mastermind, Category.Reading, listOf("analysis-pack", "reading", "bias", "argument", "evidence"), 6, "⚖"),
+        required("multi-clue-case", "Multi-Clue Case", "Cross-reference several clues to resolve a case with one consistent answer.", LevelId.Mastermind, Category.Logic, listOf("analysis-pack", "logic", "deduction", "constraints", "evidence"), 6, "⌕"),
+        required("forecast-workshop", "Forecast Workshop", "Use a historical pattern to select the most defensible next-value forecast.", LevelId.Mastermind, Category.Math, listOf("analysis-pack", "math", "forecasting", "data", "trends"), 6, "⌁"),
+        required("trade-off-matrix", "Trade-off Matrix", "Weight several criteria and determine which option offers the best overall trade-off.", LevelId.Mastermind, Category.Math, listOf("analysis-pack", "math", "decision", "comparison", "optimization"), 7, "▦"),
+
+        required("bayesian-update", "Bayesian Update", "Revise the likelihood of a hypothesis when new diagnostic evidence arrives.", LevelId.Genius, Category.Math, listOf("analysis-pack", "math", "probability", "evidence", "inference"), 8, "P"),
+        required("counterexample-forge", "Counterexample Forge", "Find the single example that disproves a broad logical claim.", LevelId.Genius, Category.Logic, listOf("analysis-pack", "logic", "counterexample", "argument", "evidence"), 8, "≠"),
+        required("systems-thinker", "Systems Thinker", "Trace interacting causes and predict a second-order effect in a small system.", LevelId.Genius, Category.Logic, listOf("analysis-pack", "logic", "systems", "causality", "inference"), 8, "∞"),
+        required("decision-under-risk", "Decision Under Risk", "Compare expected outcomes and select the rational option under uncertainty.", LevelId.Genius, Category.Math, listOf("analysis-pack", "math", "probability", "decision", "optimization"), 9, "⚄"),
+        required("model-critic", "Model Critic", "Identify which missing variable or weak assumption makes a model unreliable.", LevelId.Genius, Category.Reading, listOf("analysis-pack", "reading", "models", "assumptions", "evidence"), 9, "△"),
+    )
 
     private fun requiredThinker(): List<GameDefinition> = listOf(
         required("rapid-equations", "Rapid Equations", "Solve mixed-operation equations with order-of-operations rules.", LevelId.Thinker, Category.Math, listOf("math", "calculation", "numbers", "timed", "adaptive"), 4, "Σ"),

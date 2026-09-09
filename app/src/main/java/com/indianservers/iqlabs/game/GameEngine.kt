@@ -46,6 +46,7 @@ object QuestionFactory {
     fun questionsFor(game: GameDefinition, seed: Int, count: Int = 6, tier: Int = game.difficulty): List<Question> {
         val random = Random(seed)
         val effectiveTier = tier.coerceIn(1, 12)
+        if ("analysis-pack" in game.tags) return analyticalQuestions(game, random, count, effectiveTier)
         return when (game.id) {
             "flash-sum" -> flashSum(random, count, effectiveTier)
             "memory-grid" -> memoryGrid(random, count, effectiveTier)
@@ -56,6 +57,227 @@ object QuestionFactory {
             "maze-scout" -> mazeScout(random, count, effectiveTier)
             else -> genericQuestions(game.copy(difficulty = effectiveTier), random, count)
         }
+    }
+
+    private fun analyticalQuestions(game: GameDefinition, random: Random, count: Int, tier: Int): List<Question> =
+        List(count) { round ->
+            when {
+                "causality" in game.tags || "systems" in game.tags -> causalQuestion(game, random)
+                "bias" in game.tags -> biasQuestion(random)
+                "probability" in game.tags -> probabilityQuestion(game, random, tier)
+                "decision" in game.tags || "optimization" in game.tags || "planning" in game.tags -> decisionQuestion(game, random, tier)
+                "data" in game.tags || "forecasting" in game.tags || "comparison" in game.tags -> dataQuestion(game, random, tier)
+                "assumptions" in game.tags || "models" in game.tags -> assumptionQuestion(game, random)
+                "argument" in game.tags || "counterexample" in game.tags || "evidence" in game.tags && game.category == Category.Reading -> evidenceQuestion(game, random)
+                "classification" in game.tags -> classificationQuestion(game, random)
+                "constraints" in game.tags || "deduction" in game.tags || "rules" in game.tags -> deductionQuestion(game, random)
+                else -> patternAnalysisQuestion(game, random, tier, round)
+            }
+        }
+
+    private fun classificationQuestion(game: GameDefinition, random: Random): Question {
+        val banks = listOf(
+            Triple("Rule: multiples of 3. Which item belongs?", listOf("14", "18", "22", "25"), "18"),
+            Triple("Rule: shapes with four equal sides. Which item belongs?", listOf("Rectangle", "Square", "Triangle", "Circle"), "Square"),
+            Triple("Rule: living things. Which item belongs?", listOf("Robot", "Tree", "Chair", "Stone"), "Tree"),
+            Triple("Rule: words that name a colour. Which item belongs?", listOf("Amber", "River", "Music", "Window"), "Amber"),
+        )
+        val (prompt, choices, answer) = banks[random.nextInt(banks.size)]
+        return Question("${game.name}: $prompt", choices.shuffled(random), answer, "$answer is the only choice that satisfies the stated rule.")
+    }
+
+    private fun patternAnalysisQuestion(game: GameDefinition, random: Random, tier: Int, round: Int): Question {
+        val start = random.nextInt(1, 8 + tier)
+        val step = random.nextInt(2, 4 + tier / 2)
+        val sequence = List(4) { start + it * step }
+        val answer = sequence.last() + step
+        return choiceQuestion(
+            "${game.name}: ${sequence.joinToString(", ")}, ?\nWhich value confirms the rule?",
+            answer,
+            random,
+            "Every step adds $step, so round ${round + 1} continues with $answer.",
+        )
+    }
+
+    private fun dataQuestion(game: GameDefinition, random: Random, tier: Int): Question {
+        val start = random.nextInt(8, 18 + tier)
+        val change = random.nextInt(2, 5 + tier / 3)
+        val values = List(4) { start + it * change }
+        return when {
+            "forecasting" in game.tags -> choiceQuestion(
+                "${game.name}: Weekly values are ${values.joinToString(", ")}. What is the most defensible next forecast?",
+                values.last() + change,
+                random,
+                "The stable trend increases by $change each week.",
+            )
+            "trends" in game.tags -> Question(
+                "${game.name}: Values are ${values.joinToString(" → ")}. Which statement is supported?",
+                listOf("Rises steadily", "Falls steadily", "Stays constant", "Changes randomly").shuffled(random),
+                "Rises steadily",
+                "Each value is $change higher than the previous value.",
+            )
+            else -> {
+                val first = values.first()
+                val last = values.last()
+                choiceQuestion(
+                    "${game.name}: A = $first, B = ${values[1]}, C = ${values[2]}, D = $last. How much greater is D than A?",
+                    last - first,
+                    random,
+                    "Subtract A from D: $last - $first = ${last - first}.",
+                )
+            }
+        }
+    }
+
+    private fun probabilityQuestion(game: GameDefinition, random: Random, tier: Int): Question {
+        if (game.id == "bayesian-update") {
+            val affected = 10 + random.nextInt(6) * 2
+            val trueAlerts = affected * 4 / 5
+            val falseAlerts = 4 + random.nextInt(4) * 2
+            val answer = trueAlerts * 100 / (trueAlerts + falseAlerts)
+            return choiceQuestion(
+                "${game.name}: In 100 cases, $affected have the issue. The test alerts on $trueAlerts of them and on $falseAlerts healthy cases. Among all alerts, about what percent truly have the issue?",
+                answer,
+                random,
+                "There are ${trueAlerts + falseAlerts} alerts; $trueAlerts are true, so the updated probability is about $answer%.",
+            )
+        }
+        if (game.id == "decision-under-risk") {
+            val safe = 4 + tier
+            val win = safe * 3
+            val chance = 40
+            val riskyExpected = win * chance / 100
+            val answer = if (safe >= riskyExpected) "Safe option" else "Risky option"
+            return Question(
+                "${game.name}: Safe option earns $safe points. Risky option has a $chance% chance to earn $win and otherwise earns 0. Which has the higher expected value?",
+                listOf("Safe option", "Risky option", "They are equal").shuffled(random),
+                answer,
+                "The risky expected value is $riskyExpected; compare it with the safe value of $safe.",
+            )
+        }
+        val blue = random.nextInt(2, 8 + tier)
+        val gold = random.nextInt(2, 8 + tier)
+        val answer = when {
+            blue > gold -> "Blue"
+            gold > blue -> "Gold"
+            else -> "Equally likely"
+        }
+        return Question(
+            "${game.name}: A bag contains $blue blue and $gold gold tokens. Which result is more likely on one draw?",
+            listOf("Blue", "Gold", "Equally likely").shuffled(random),
+            answer,
+            "The outcome with more tokens has greater probability.",
+        )
+    }
+
+    private fun evidenceQuestion(game: GameDefinition, random: Random): Question {
+        if (game.id == "counterexample-forge") {
+            val banks = listOf(
+                Triple("Claim: Every even number is divisible by 4. Which example disproves it?", listOf("8", "10", "12", "16"), "10"),
+                Triple("Claim: All birds can fly. Which example disproves it?", listOf("Sparrow", "Eagle", "Penguin", "Robin"), "Penguin"),
+                Triple("Claim: Adding two odd numbers gives an odd number. Which example disproves it?", listOf("3 + 5 = 8", "2 + 4 = 6", "1 + 2 = 3", "4 + 5 = 9"), "3 + 5 = 8"),
+            )
+            val (prompt, choices, answer) = banks[random.nextInt(banks.size)]
+            return Question("${game.name}: $prompt", choices.shuffled(random), answer, "$answer is a valid case that makes the universal claim false.")
+        }
+        val banks = listOf(
+            Triple("Claim: The new route is faster. Which fact supports it most directly?", listOf("Average trip time fell from 30 to 22 minutes", "The buses are blue", "More posters were printed", "The route has a new name"), "Average trip time fell from 30 to 22 minutes"),
+            Triple("Claim: Regular review improved recall. Which fact is strongest?", listOf("The review group remembered 18% more after one week", "The room was quiet", "The notes used green ink", "Everyone liked the teacher"), "The review group remembered 18% more after one week"),
+            Triple("Claim: The conclusion needs stronger support. Which addition helps most?", listOf("A controlled comparison with measured results", "A louder opinion", "A colourful title", "One unrelated example"), "A controlled comparison with measured results"),
+        )
+        val (prompt, choices, answer) = banks[random.nextInt(banks.size)]
+        return Question("${game.name}: $prompt", choices.shuffled(random), answer, "The best evidence measures the claim directly and rules out weaker explanations.")
+    }
+
+    private fun assumptionQuestion(game: GameDefinition, random: Random): Question {
+        val banks = if (game.id == "model-critic") {
+            listOf(
+                Triple("A sales model uses advertising spend alone. What missing variable most threatens it?", listOf("Product price", "Logo colour", "Report font", "File name"), "Product price"),
+                Triple("A travel-time model ignores weather. Which assumption is weakest?", listOf("Weather never affects traffic", "Minutes measure time", "Roads connect places", "Trips have destinations"), "Weather never affects traffic"),
+                Triple("A crop model uses rainfall but ignores soil. What should be added?", listOf("Soil quality", "Chart border", "Farm name length", "Page number"), "Soil quality"),
+            )
+        } else {
+            listOf(
+                Triple("Argument: The library should stay open later because evening visits increased. What must be assumed?", listOf("Later hours would serve those evening visitors", "Every visitor reads fiction", "The building is new", "Books are arranged by colour"), "Later hours would serve those evening visitors"),
+                Triple("Argument: This route will save time because it is shorter. What must be assumed?", listOf("Traffic and speed are reasonably similar", "The car is red", "The map is printed", "The driver likes shortcuts"), "Traffic and speed are reasonably similar"),
+                Triple("Argument: Practice quizzes raised scores, so we should use them again. What must be assumed?", listOf("The quizzes contributed to the improvement", "All questions were easy", "Scores never vary", "Students used pencils"), "The quizzes contributed to the improvement"),
+            )
+        }
+        val (prompt, choices, answer) = banks[random.nextInt(banks.size)]
+        return Question("${game.name}: $prompt", choices.shuffled(random), answer, "The argument depends on: $answer.")
+    }
+
+    private fun biasQuestion(random: Random): Question {
+        val banks = listOf(
+            Triple("A team reads only reviews that agree with its plan. Which bias is this?", listOf("Confirmation bias", "Random sampling", "Base-rate use", "Controlled testing"), "Confirmation bias"),
+            Triple("After one dramatic failure, a manager assumes failure is common. Which bias is strongest?", listOf("Availability bias", "Blind testing", "Regression analysis", "Deduction"), "Availability bias"),
+            Triple("A buyer keeps funding a failing project because much was already spent. Which bias is this?", listOf("Sunk-cost bias", "Survivorship bias", "Recency weighting", "Peer review"), "Sunk-cost bias"),
+        )
+        val (prompt, choices, answer) = banks[random.nextInt(banks.size)]
+        return Question("Bias Detector: $prompt", choices.shuffled(random), answer, "$answer best explains the reasoning error.")
+    }
+
+    private fun causalQuestion(game: GameDefinition, random: Random): Question {
+        if (game.id == "systems-thinker") {
+            val banks = listOf(
+                Triple("A city adds buses, so fewer people drive. What likely second-order effect follows?", listOf("Less road congestion", "Longer book titles", "More rainfall", "Shorter buildings"), "Less road congestion"),
+                Triple("A lake loses predators, so small fish increase. What may happen next?", listOf("Their food supply declines", "The lake becomes square", "Days get longer", "Rocks disappear"), "Their food supply declines"),
+                Triple("A store cuts checkout time, attracting more shoppers. What feedback effect may follow?", listOf("Queues grow again", "Prices become colours", "Shelves get shorter", "Clocks stop"), "Queues grow again"),
+            )
+            val (prompt, choices, answer) = banks[random.nextInt(banks.size)]
+            return Question("${game.name}: $prompt", choices.shuffled(random), answer, "$answer follows through the next link in the system.")
+        }
+        val banks = listOf(
+            Triple("Ice-cream sales and sunburn both rise in summer. What is the best conclusion?", listOf("Warm weather may influence both", "Ice cream causes sunburn", "Sunburn causes ice cream sales", "The data prove no relationship"), "Warm weather may influence both"),
+            Triple("Plants given fertilizer grew more, but they also received more sunlight. What can we conclude?", listOf("The cause is unclear", "Fertilizer definitely caused growth", "Sunlight had no effect", "Growth caused fertilizer"), "The cause is unclear"),
+            Triple("A randomized group using a new method improves while the control group does not. What is best supported?", listOf("The method may have caused improvement", "Improvement caused the method", "Only coincidence is possible", "No comparison can be made"), "The method may have caused improvement"),
+        )
+        val (prompt, choices, answer) = banks[random.nextInt(banks.size)]
+        return Question("${game.name}: $prompt", choices.shuffled(random), answer, "This choice distinguishes evidence for causation from simple correlation.")
+    }
+
+    private fun deductionQuestion(game: GameDefinition, random: Random): Question {
+        val banks = listOf(
+            Triple("A is before B. C is after B. Which order must be correct?", listOf("A-B-C", "B-A-C", "C-B-A", "A-C-B"), "A-B-C"),
+            Triple("The red box is not first. The blue box is before the green box. Which order is valid?", listOf("Blue-Red-Green", "Red-Blue-Green", "Green-Blue-Red", "Red-Green-Blue"), "Blue-Red-Green"),
+            Triple("Mira chose neither square nor blue. Options are red circle, blue circle, red square, blue square. What did she choose?", listOf("Red circle", "Blue circle", "Red square", "Blue square"), "Red circle"),
+            Triple("Rule: accept numbers greater than 5 and even. Which input is accepted?", listOf("4", "7", "8", "9"), "8"),
+        )
+        val (prompt, choices, answer) = banks[random.nextInt(banks.size)]
+        return Question("${game.name}: $prompt", choices.shuffled(random), answer, "$answer is the only choice consistent with every constraint.")
+    }
+
+    private fun decisionQuestion(game: GameDefinition, random: Random, tier: Int): Question {
+        if (game.id == "trade-off-matrix") {
+            val a = 6 + random.nextInt(3)
+            val b = 5 + random.nextInt(3)
+            val c = 4 + random.nextInt(3)
+            val scoreA = a * 2 + 5
+            val scoreB = b * 2 + 8
+            val scoreC = c * 2 + 7
+            val answer = listOf("A" to scoreA, "B" to scoreB, "C" to scoreC).maxBy { it.second }.first
+            return Question(
+                "${game.name}: Reliability counts double; speed counts once. A = $a reliability, 5 speed. B = $b reliability, 8 speed. C = $c reliability, 7 speed. Which scores highest?",
+                listOf("A", "B", "C", "All tie").shuffled(random),
+                answer,
+                "Weighted totals are A=$scoreA, B=$scoreB and C=$scoreC.",
+            )
+        }
+        val budget = 8 + tier
+        val options = listOf(
+            Triple("Plan A", budget - 1, 12 + tier),
+            Triple("Plan B", budget + 3, 18 + tier),
+            Triple("Plan C", budget - 3, 9 + tier),
+        )
+        val feasible = options.filter { it.second <= budget }
+        val answer = feasible.maxBy { it.third }.first
+        val summary = options.joinToString("; ") { "${it.first}: cost ${it.second}, value ${it.third}" }
+        return Question(
+            "${game.name}: Budget is $budget. $summary. Which feasible plan gives the greatest value?",
+            (options.map { it.first } + "None").shuffled(random),
+            answer,
+            "$answer stays within budget and has the highest feasible value.",
+        )
     }
 
     private fun flashSum(random: Random, count: Int, difficulty: Int) = List(count) {

@@ -32,8 +32,27 @@ import org.junit.Test
 class CatalogAndEngineTest {
     @Test
     fun catalogueContainsAtLeast150UniqueGames() {
-        assertTrue(IqCatalog.games.size >= 150)
+        assertTrue(IqCatalog.games.size >= 175)
         assertEquals(IqCatalog.games.size, IqCatalog.games.map { it.id }.toSet().size)
+    }
+
+    @Test
+    fun analyticalThinkingPackAddsFivePlayableGamesPerLevel() {
+        val analyticalGames = IqCatalog.games.filter { "analysis-pack" in it.tags }
+        assertEquals(25, analyticalGames.size)
+        LevelId.entries.forEach { level ->
+            assertEquals("$level analytical game count", 5, analyticalGames.count { it.level == level })
+        }
+        analyticalGames.forEach { game ->
+            assertEquals(ImplementationStatus.Playable, game.status)
+            val questions = QuestionFactory.questionsFor(game, seed = game.id.hashCode(), count = 8, tier = game.difficulty)
+            assertEquals(8, questions.size)
+            questions.forEach { question ->
+                assertTrue("${game.id} prompt should identify its game", question.prompt.startsWith(game.name))
+                assertTrue(question.choices.contains(question.answer))
+                assertEquals(question.choices.size, question.choices.distinct().size)
+            }
+        }
     }
 
     @Test
