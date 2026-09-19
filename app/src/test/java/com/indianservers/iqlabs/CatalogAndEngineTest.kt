@@ -157,14 +157,14 @@ class CatalogAndEngineTest {
     }
 
     @Test
-    fun workbookBlueprintHasTwentyGamesAndTwelveLevelsEach() {
-        assertEquals(20, LevelBlueprint.games.size)
-        assertEquals(240, LevelBlueprint.stages.size)
+    fun priorityBlueprintHasThirtyGamesAndTwentyLevelsEach() {
+        assertEquals(30, LevelBlueprint.games.size)
+        assertEquals(600, LevelBlueprint.stages.size)
         assertTrue(LevelBlueprint.mappedCatalogGamesArePlayable())
         LevelBlueprint.games.forEach { blueprintGame ->
             val stages = LevelBlueprint.stagesForCatalogGame(blueprintGame.catalogId)
-            assertEquals("${blueprintGame.gameName} stage count", 12, stages.size)
-            assertEquals((1..12).toList(), stages.map { it.level })
+            assertEquals("${blueprintGame.gameName} stage count", LevelBlueprint.MAX_LEVEL, stages.size)
+            assertEquals((1..LevelBlueprint.MAX_LEVEL).toList(), stages.map { it.level })
             assertTrue(stages.zipWithNext().all { (a, b) -> b.scoreMultiplier > a.scoreMultiplier })
             stages.forEach { stage ->
                 assertTrue(stage.exactDesign.contains(blueprintGame.gameName))
@@ -175,10 +175,10 @@ class CatalogAndEngineTest {
     }
 
     @Test
-    fun workbookBlueprintMappedGamesGenerateAcrossAllTwelveLevels() {
+    fun priorityBlueprintMappedGamesGenerateAcrossAllTwentyLevels() {
         LevelBlueprint.games.forEach { blueprintGame ->
             val game = IqCatalog.game(blueprintGame.catalogId)
-            (1..12).forEach { level ->
+            (1..LevelBlueprint.MAX_LEVEL).forEach { level ->
                 val questions = QuestionFactory.questionsFor(game, seed = level * 101, count = 4, tier = level)
                 assertEquals("${blueprintGame.gameName} L$level", 4, questions.size)
                 questions.forEach { question ->

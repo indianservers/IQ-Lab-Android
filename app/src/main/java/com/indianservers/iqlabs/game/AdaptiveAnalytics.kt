@@ -83,7 +83,7 @@ data class Recommendation(val game: GameDefinition, val reason: String)
 
 object AdaptiveDifficultyEngine {
     fun initialProfile(game: GameDefinition, mode: DifficultyMode = DifficultyMode.Adaptive): DifficultyProfile =
-        DifficultyProfile(game.id, mode, tier = game.difficulty.coerceIn(1, 12))
+        DifficultyProfile(game.id, mode, tier = game.difficulty.coerceIn(1, LevelBlueprint.maxLevelFor(game.id)))
 
     fun parametersFor(game: GameDefinition, profile: DifficultyProfile): DifficultyParameters {
         val tier = when (profile.mode) {
@@ -110,7 +110,7 @@ object AdaptiveDifficultyEngine {
         val averageSpeed = recent.map { it.medianResponseMs }.average()
         val completed = recent.count { it.completed }
         val newTier = when {
-            averageAccuracy >= 86.0 && averageSpeed <= 4200 && completed >= 5 -> (profile.tier + 1).coerceAtMost(12)
+            averageAccuracy >= 86.0 && averageSpeed <= 4200 && completed >= 5 -> (profile.tier + 1).coerceAtMost(LevelBlueprint.maxLevelFor(profile.gameId))
             averageAccuracy <= 58.0 || completed <= 3 -> (profile.tier - 1).coerceAtLeast(1)
             else -> profile.tier
         }

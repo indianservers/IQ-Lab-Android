@@ -45,7 +45,7 @@ object ScoreEngine {
 object QuestionFactory {
     fun questionsFor(game: GameDefinition, seed: Int, count: Int = 6, tier: Int = game.difficulty): List<Question> {
         val random = Random(seed)
-        val effectiveTier = tier.coerceIn(1, 12)
+        val effectiveTier = tier.coerceIn(1, LevelBlueprint.maxLevelFor(game.id))
         if ("analysis-pack" in game.tags) return analyticalQuestions(game, random, count, effectiveTier)
         return when (game.id) {
             "flash-sum" -> flashSum(random, count, effectiveTier)

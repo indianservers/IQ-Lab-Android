@@ -501,6 +501,7 @@ private fun GameDetailsScreen(game: GameDefinition, best: Int?, difficultyMode: 
     val profile = remember(game.id, difficultyMode) { AdaptiveDifficultyEngine.initialProfile(game, difficultyMode) }
     val parameters = AdaptiveDifficultyEngine.parametersFor(game, profile)
     val blueprintStages = remember(game.id) { LevelBlueprint.stagesForCatalogGame(game.id) }
+    val maxLevel = LevelBlueprint.maxLevelFor(game.id)
     BackHandler(onBack = onBack)
     LabBackground {
         LazyColumn(contentPadding = PaddingValues(18.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -534,7 +535,7 @@ private fun GameDetailsScreen(game: GameDefinition, best: Int?, difficultyMode: 
                                 FilterChip(selected = difficultyMode == mode, onClick = { onDifficultyMode(mode) }, label = { Text(mode.name) })
                             }
                         }
-                        Text("Tier ${parameters.tier}/12 · ${profile.lastReason}", color = game.accent)
+                        Text("Tier ${parameters.tier}/$maxLevel · ${profile.lastReason}", color = game.accent)
                         Text("Parameters: sequence ${parameters.sequenceLength}, distractors ${parameters.distractors}, response window ${parameters.responseWindowSeconds}s.")
                     }
                 }
@@ -543,8 +544,8 @@ private fun GameDetailsScreen(game: GameDefinition, best: Int?, difficultyMode: 
                 item {
                     AccentCard(game.accent) {
                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Text("12-Level Blueprint", fontWeight = FontWeight.Bold, fontSize = 20.sp)
-                            Text("This priority game follows the workbook progression from Orientation to Limit Test.")
+                            Text("20-Level Blueprint", fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                            Text("This top-30 game follows the complete progression from Orientation to Apex.")
                             blueprintStages.take(4).forEach { stage ->
                                 Text("L${stage.level} ${stage.stage}: x${"%.2f".format(stage.scoreMultiplier)}", color = MaterialTheme.colorScheme.onSurface.copy(.76f))
                             }
@@ -570,6 +571,7 @@ private fun PlayScreen(game: GameDefinition, seed: Int, difficultyMode: Difficul
     val parameters = remember(game.id, difficultyMode) { AdaptiveDifficultyEngine.parametersFor(game, profile) }
     val blueprintStage = remember(game.id, parameters.tier) { LevelBlueprint.stageFor(game.id, parameters.tier) }
     val questions = remember(game.id, seed, parameters.tier) { QuestionFactory.questionsFor(game, seed, 6, parameters.tier) }
+    val maxLevel = LevelBlueprint.maxLevelFor(game.id)
     var started by rememberSaveable { mutableStateOf(false) }
     var paused by rememberSaveable { mutableStateOf(false) }
     var index by rememberSaveable { mutableIntStateOf(0) }
@@ -600,7 +602,7 @@ private fun PlayScreen(game: GameDefinition, seed: Int, difficultyMode: Difficul
                     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Session Brief", fontSize = 26.sp, fontWeight = FontWeight.Black)
                         Text(game.instructions)
-                        Text("${difficultyMode.name} mode · tier ${parameters.tier}/12 · ${profile.lastReason}")
+                        Text("${difficultyMode.name} mode · tier ${parameters.tier}/$maxLevel · ${profile.lastReason}")
                         if (blueprintStage != null) {
                             Text("Blueprint L${blueprintStage.level} ${blueprintStage.stage}: ${blueprintStage.exactDesign}")
                             Text("Mastery: ${blueprintStage.masteryTarget}", color = game.accent)

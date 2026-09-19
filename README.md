@@ -56,7 +56,7 @@ Generated rounds, shared scoring, XP calculation and personal-best checks live i
 - `ProgressSystems.kt` contains mastery-star rules, unlock rules, daily plan generation and achievement definitions.
 - `AdaptiveAnalytics.kt` contains adaptive difficulty, skill observations, confidence states, session metrics and explainable recommendations.
 - `ChallengeSystem.kt` contains deterministic Daily Arena, Weekly Cup, Category Sprint, Grand Gauntlet, share-code import/export, local standings, local leagues and challenge scoring.
-- `LevelBlueprint.kt` implements the attached Best 20 Games / 12-Level workbook blueprint as 20 mapped priority games and 240 internal stages.
+- `LevelBlueprint.kt` expands the attached workbook into 30 mapped priority games with 20 levels each, for 600 internal stages.
 
 ## Scoring And XP
 
@@ -68,7 +68,7 @@ Each completed session earns one to three stars from game-specific difficulty th
 
 ## Adaptive Difficulty And Analytics
 
-Difficulty modes are Adaptive, Fixed and Relaxed. Adaptive mode waits for a rolling window of completed rounds, then adjusts one tier at a time using accuracy, median response time and completion quality. Cooldown prevents rapid oscillation, bounds keep tiers between 1 and 5, and the UI explains the current tier and reason.
+Difficulty modes are Adaptive, Fixed and Relaxed. Adaptive mode waits for a rolling window of completed rounds, then adjusts one tier at a time using accuracy, median response time and completion quality. Cooldown prevents rapid oscillation; priority games can advance through tier 20 while standard games remain capped at tier 12, and the UI explains the current tier and reason.
 
 The skill model tracks training indicators only, never clinical IQ. It covers mathematical reasoning, memory, working memory, logic, verbal reasoning, reading, processing speed, attention, spatial reasoning, cognitive flexibility, planning and reaction speed. Skill confidence is based on observation count and starts with clear insufficient-data states.
 
@@ -76,9 +76,9 @@ The skill model tracks training indicators only, never clinical IQ. It covers ma
 
 Challenge definitions are versioned, deterministic and backend-free. Share codes contain no private user data and include a lightweight checksum for accidental tamper detection. Daily Arena and Weekly Cup are stable for the same local date or ISO week. Standings are local only; the app does not show fake players, global rankings or population percentiles.
 
-## Best 20 Blueprint
+## Top 30 Blueprint
 
-The attached workbook blueprint is implemented as a 12-level progression layer for 20 priority games. Game Details and Play Session display the active stage design, and generators/adaptive difficulty support tiers 1-12 for those games.
+The original workbook blueprint is expanded into a 20-level progression layer for 30 priority games. Game Details and Play Session display the active stage design, and generators/adaptive difficulty support tiers 1-20 for those games.
 
 ## Accessibility Notes
 
