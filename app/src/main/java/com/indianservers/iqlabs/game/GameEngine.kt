@@ -8,6 +8,7 @@ enum class PlayStyle {
     Reading, Keypad, Swipe, GoNoGo, Targets, Grid, Sequence, Tiles,
     Reveal, Match, Wait, Search, Peripheral, SymbolKey, Sudoku, Tower, Trail, Hold, Shade,
     CodeBreaker, Circuit, MultiSelect, FocusTrack, StudyChoice, Matrix, Deduction, GridPlacement,
+    NBack,
 }
 
 data class Question(

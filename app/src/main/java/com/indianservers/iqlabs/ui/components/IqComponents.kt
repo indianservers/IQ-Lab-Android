@@ -1,8 +1,14 @@
 package com.indianservers.iqlabs.ui.components
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,12 +32,15 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -132,12 +141,36 @@ fun GameArt(
 
 @Composable
 fun PlayBadge(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) .9f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "playBadgeScale",
+    )
     Box(
         modifier
-            .size(36.dp)
+            .padding(2.dp)
+            .size(40.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .shadow(6.dp, CircleShape, ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = .3f))
             .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primary)
-            .clickable(onClick = onClick),
+            .background(
+                Brush.verticalGradient(
+                    listOf(MaterialTheme.colorScheme.primary.copy(alpha = .82f), MaterialTheme.colorScheme.primary),
+                ),
+            )
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onClick,
+            ),
         contentAlignment = Alignment.Center,
     ) {
         Icon(Icons.Rounded.PlayArrow, contentDescription = "Play", tint = Color.White, modifier = Modifier.size(22.dp))
@@ -177,12 +210,31 @@ fun IqBottomBar(tab: Tab, onTab: (Tab) -> Unit) {
         ) {
             Tab.entries.forEach { item ->
                 val selected = tab == item
+                val interactionSource = remember(item) { MutableInteractionSource() }
+                val isPressed by interactionSource.collectIsPressedAsState()
+                val scale by animateFloatAsState(
+                    targetValue = if (isPressed) .94f else 1f,
+                    animationSpec = spring(
+                        dampingRatio = Spring.DampingRatioMediumBouncy,
+                        stiffness = Spring.StiffnessMedium,
+                    ),
+                    label = "${item.label}TabScale",
+                )
                 Column(
                     Modifier
                         .weight(1f)
+                        .padding(horizontal = 3.dp, vertical = 5.dp)
+                        .graphicsLayer {
+                            scaleX = scale
+                            scaleY = scale
+                        }
                         .clip(RoundedCornerShape(22.dp))
-                        .clickable { onTab(item) }
-                        .padding(vertical = 8.dp),
+                        .background(if (selected) extras.navSelected.copy(alpha = .11f) else Color.Transparent)
+                        .clickable(
+                            interactionSource = interactionSource,
+                            indication = LocalIndication.current,
+                        ) { onTab(item) }
+                        .padding(vertical = 7.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
                     Icon(

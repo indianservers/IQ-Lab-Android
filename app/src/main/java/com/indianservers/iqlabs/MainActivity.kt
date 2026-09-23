@@ -390,9 +390,10 @@ private fun GameDetailsScreen(
                     TextButton(onClick = onBack) { Text("Back") }
                     Button(
                         onClick = onPlay,
-                        modifier = Modifier.weight(1f).height(48.dp),
+                        modifier = Modifier.weight(1f).height(52.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = game.accent, contentColor = Color.White),
-                        shape = RoundedCornerShape(16.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 5.dp, pressedElevation = 1.dp),
+                        shape = RoundedCornerShape(18.dp),
                     ) { Text("Play", fontWeight = FontWeight.Black, fontSize = 18.sp) }
                 }
                 SoftCard(modifier = Modifier.fillMaxWidth(), padding = 0.dp) {
@@ -526,14 +527,23 @@ private fun PlayScreen(
                     }
                     Text("Six playful rounds · tap, swipe or count · pause anytime.", color = extras.muted)
                     Spacer(Modifier.height(8.dp))
-                    Button(onClick = { started = true }, modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(16.dp)) { Text("Start Countdown") }
+                    Button(
+                        onClick = { started = true },
+                        modifier = Modifier.fillMaxWidth().height(52.dp),
+                        elevation = ButtonDefaults.buttonElevation(defaultElevation = 5.dp, pressedElevation = 1.dp),
+                        shape = RoundedCornerShape(18.dp),
+                    ) { Text("Start Countdown", fontWeight = FontWeight.Bold) }
                 }
             } else if (paused) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                     SoftCard(modifier = Modifier.fillMaxWidth()) {
                         Text("Paused", fontWeight = FontWeight.Black, fontSize = 28.sp)
                         Text("Your round is waiting.", color = extras.muted)
-                        Button(onClick = { paused = false }, modifier = Modifier.fillMaxWidth()) { Text("Resume") }
+                        Button(
+                            onClick = { paused = false },
+                            modifier = Modifier.fillMaxWidth().height(50.dp),
+                            elevation = ButtonDefaults.buttonElevation(defaultElevation = 5.dp, pressedElevation = 1.dp),
+                        ) { Text("Resume", fontWeight = FontWeight.Bold) }
                     }
                 }
             } else {
@@ -572,9 +582,9 @@ private fun PlayScreen(
                     }
                 }
                 PlayRound(game, question, feedback, adaptiveHint, answerHandler, Modifier.fillMaxWidth().weight(1f), sound = sound)
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-                    OutlinedButton(onClick = { paused = true }, modifier = Modifier.weight(1f).height(42.dp)) { Text("Pause") }
-                    OutlinedButton(onClick = { onSound(!sound) }, modifier = Modifier.weight(1f).height(42.dp)) { Text(if (sound) "Sound on" else "Muted") }
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 2.dp)) {
+                    OutlinedButton(onClick = { paused = true }, modifier = Modifier.weight(1f).height(46.dp)) { Text("Pause", fontWeight = FontWeight.Bold) }
+                    OutlinedButton(onClick = { onSound(!sound) }, modifier = Modifier.weight(1f).height(46.dp)) { Text(if (sound) "Sound on" else "Muted", fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -618,15 +628,21 @@ private fun ResultsScreen(
                 }
             }
             Spacer(Modifier.height(14.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp)) {
                 Button(
                     onClick = { onSaveScore(); saved = true },
                     modifier = Modifier.weight(1f).height(50.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = game.accent),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 5.dp, pressedElevation = 1.dp),
                 ) { Text(if (saved) "Score Saved" else "Save Score", color = Color.White, fontWeight = FontWeight.Bold) }
                 OutlinedButton(onClick = { confirmReset = true }, modifier = Modifier.weight(1f).height(50.dp)) { Text("Reset Score") }
             }
-            Button(onClick = onRetry, modifier = Modifier.fillMaxWidth().height(54.dp), shape = RoundedCornerShape(16.dp)) { Text("Retry") }
+            Button(
+                onClick = onRetry,
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp).height(54.dp),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 5.dp, pressedElevation = 1.dp),
+                shape = RoundedCornerShape(18.dp),
+            ) { Text("Retry", fontWeight = FontWeight.Bold) }
             TextButton(onClick = onCatalogue, modifier = Modifier.fillMaxWidth()) { Text("Return to Catalogue") }
         }
     }

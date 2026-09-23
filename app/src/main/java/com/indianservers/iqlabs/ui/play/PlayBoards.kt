@@ -3,9 +3,15 @@ package com.indianservers.iqlabs.ui.play
 import android.media.AudioManager
 import android.media.ToneGenerator
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,9 +42,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -59,6 +69,32 @@ private val playPalette = listOf(
     Color(0xFF6C5CE7), Color(0xFF13D8FF), Color(0xFF8DE640), Color(0xFFFFB02E),
     Color(0xFFFF5D64), Color(0xFF8B5CFF), Color(0xFF5ED0B0), Color(0xFFFF9A6B),
 )
+
+private fun Modifier.gamePressable(
+    enabled: Boolean = true,
+    pressedScale: Float = .96f,
+    onTap: () -> Unit,
+): Modifier = composed {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (enabled && isPressed) pressedScale else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "gameControlScale",
+    )
+    graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }.clickable(
+        enabled = enabled,
+        interactionSource = interactionSource,
+        indication = LocalIndication.current,
+        onClick = onTap,
+    )
+}
 
 @Composable
 fun PlayRound(
@@ -120,6 +156,7 @@ fun PlayRound(
             PlayStyle.Matrix -> MatrixBoard(game, question, onAnswer)
             PlayStyle.Deduction -> DeductionBoard(game, question, onAnswer)
             PlayStyle.GridPlacement -> GridPlacementBoard(game, question, onAnswer)
+            PlayStyle.NBack -> NBackBoard(game, question, onAnswer)
         }
         AnimatedVisibility(feedback != null) {
             Text(feedback.orEmpty(), color = game.accent, fontWeight = FontWeight.Bold)
@@ -154,6 +191,46 @@ private fun playVerb(style: PlayStyle) = when (style) {
     PlayStyle.Matrix -> "COMPLETE"
     PlayStyle.Deduction -> "DEDUCE"
     PlayStyle.GridPlacement -> "PLACE"
+    PlayStyle.NBack -> "N-BACK"
+}
+
+@Composable
+private fun NBackBoard(game: GameDefinition, question: Question, onAnswer: (String) -> Unit) {
+    var active by remember(question.roundKey) { mutableIntStateOf(-1) }
+    var ready by remember(question.roundKey) { mutableStateOf(false) }
+    LaunchedEffect(question.roundKey) {
+        ready = false
+        question.field.forEach { position ->
+            active = position.toIntOrNull() ?: -1
+            delay((720L - game.difficulty * 35L).coerceAtLeast(330L))
+            active = -1
+            delay(120)
+        }
+        ready = true
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(3),
+            modifier = Modifier.size(174.dp),
+            userScrollEnabled = false,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
+        ) {
+            items(9) { index ->
+                Box(
+                    Modifier.size(54.dp).clip(RoundedCornerShape(12.dp)).background(if (index == active) Color(0xFFFFB02E) else game.accent.copy(alpha = .12f)),
+                )
+            }
+        }
+        Text(if (ready) "Final position: match or no match?" else "Keep the positions in memory", color = LocalIqExtras.current.muted, fontWeight = FontWeight.Bold)
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+            listOf("Yes", "No").forEach { choice ->
+                PlayOrb(label = choice, color = if (choice == "Yes") Color(0xFF5ED0B0) else Color(0xFFFF776D), modifier = Modifier.weight(1f).height(48.dp)) {
+                    if (ready) onAnswer(choice)
+                }
+            }
+        }
+    }
 }
 
 @Composable
@@ -323,10 +400,11 @@ private fun TargetBoard(game: GameDefinition, question: Question, onAnswer: (Str
     Column(verticalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
         if (stroopTrial) {
             val inkColor = when (question.field.getOrNull(2)) {
-                "RED" -> Color(0xFFE84545)
-                "BLUE" -> Color(0xFF397BE8)
-                "GREEN" -> Color(0xFF24A46D)
-                "GOLD" -> Color(0xFFD49A00)
+                "Red" -> Color(0xFFEF4444)
+                "Blue" -> Color(0xFF3B82F6)
+                "Green" -> Color(0xFF10B981)
+                "Yellow" -> Color(0xFFF59E0B)
+                "Purple" -> Color(0xFF8B5CF6)
                 else -> game.accent
             }
             Text(
@@ -356,9 +434,17 @@ private fun TargetBoard(game: GameDefinition, question: Question, onAnswer: (Str
         ) {
             items(question.choices) { choice ->
                 val index = question.choices.indexOf(choice)
+                val choiceColor = if (stroopTrial) when (choice) {
+                    "Red" -> Color(0xFFEF4444)
+                    "Blue" -> Color(0xFF3B82F6)
+                    "Green" -> Color(0xFF10B981)
+                    "Yellow" -> Color(0xFFF59E0B)
+                    "Purple" -> Color(0xFF8B5CF6)
+                    else -> game.accent
+                } else playPalette[index % playPalette.size]
             PlayOrb(
                 label = choice,
-                color = playPalette[index % playPalette.size],
+                color = choiceColor,
                     modifier = Modifier.height(50.dp),
                 textSize = 14.sp,
             ) { onAnswer(choice) }
@@ -400,11 +486,11 @@ private fun GridBoard(game: GameDefinition, question: Question, onAnswer: (Strin
                 Box(
                     modifier = Modifier
                         .height(if (size == 9) 44.dp else 40.dp)
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(if (on) game.accent else game.accent.copy(alpha = .12f))
-                        .clickable(enabled = !revealed) {
+                        .gamePressable(enabled = !revealed) {
                             selected = if (cell in selected) selected - cell else selected + cell
-                        },
+                        }
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(if (on) game.accent else game.accent.copy(alpha = .12f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(cell.toString(), color = if (on) Color.White else LocalIqExtras.current.muted, fontWeight = FontWeight.Black)
@@ -517,12 +603,42 @@ private fun PlayOrb(
     onTap: () -> Unit,
 ) {
     val shape = if (circle) CircleShape else RoundedCornerShape(22.dp)
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.955f else 1f,
+        animationSpec = spring(
+            dampingRatio = Spring.DampingRatioMediumBouncy,
+            stiffness = Spring.StiffnessMedium,
+        ),
+        label = "gameButtonScale",
+    )
     Box(
         modifier
+            .padding(horizontal = 3.dp, vertical = 3.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
+            .shadow(
+                elevation = if (isPressed) 2.dp else 7.dp,
+                shape = shape,
+                ambientColor = color.copy(alpha = .28f),
+                spotColor = color.copy(alpha = .38f),
+            )
             .clip(shape)
-            .background(color)
-            .clickable(onClick = onTap)
-            .padding(horizontal = 8.dp),
+            .background(
+                Brush.verticalGradient(
+                    listOf(color.copy(alpha = .82f), color),
+                ),
+            )
+            .border(1.dp, Color.White.copy(alpha = .34f), shape)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = LocalIndication.current,
+                onClick = onTap,
+            )
+            .padding(horizontal = 12.dp, vertical = 4.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
@@ -656,9 +772,9 @@ private fun WaitBoard(game: GameDefinition, question: Question, onAnswer: (Strin
         modifier = Modifier
             .fillMaxWidth()
             .height(150.dp)
+            .gamePressable(pressedScale = .975f) { onAnswer(if (live) "Go" else "Wait") }
             .clip(RoundedCornerShape(24.dp))
-            .background(if (live) Color(0xFF5ED0B0) else Color(0xFF3A2230))
-            .clickable { onAnswer(if (live) "Go" else "Wait") },
+            .background(if (live) Color(0xFF5ED0B0) else Color(0xFF3A2230)),
         contentAlignment = Alignment.Center,
     ) {
         Text(if (live) "GO" else "Wait…", fontWeight = FontWeight.Black, fontSize = 36.sp, color = Color.White)
@@ -743,9 +859,9 @@ private fun SudokuBoard(game: GameDefinition, question: Question, onAnswer: (Str
                 Box(
                     modifier = Modifier
                         .height(38.dp)
+                        .gamePressable(enabled = !locked) { selected = index }
                         .clip(RoundedCornerShape(10.dp))
-                        .background(if (conflict) Color(0xFFFF5D64) else if (index == selected) game.accent else game.accent.copy(alpha = .16f))
-                        .clickable(enabled = !locked) { selected = index },
+                        .background(if (conflict) Color(0xFFFF5D64) else if (index == selected) game.accent else game.accent.copy(alpha = .16f)),
                     contentAlignment = Alignment.Center,
                 ) {
                     Text(if (value == 0) "" else value.toString(), fontWeight = FontWeight.Black, color = if (index == selected || conflict) Color.White else LocalIqExtras.current.muted)
@@ -819,9 +935,9 @@ private fun TowerBoard(game: GameDefinition, question: Question, onAnswer: (Stri
                 modifier = Modifier
                     .weight(1f)
                     .height(144.dp)
+                    .gamePressable(pressedScale = .975f) { tap(index) }
                     .clip(RoundedCornerShape(16.dp))
                     .background(game.accent.copy(alpha = .12f))
-                    .clickable { tap(index) }
                     .padding(8.dp),
                 verticalArrangement = Arrangement.Bottom,
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -915,10 +1031,10 @@ private fun ShadeBoard(game: GameDefinition, question: Question, onAnswer: (Stri
             Box(
                 modifier = Modifier
                     .height(tileHeight)
+                    .gamePressable { onAnswer(index.toString()) }
                     .clip(RoundedCornerShape(12.dp))
                     .background(if (odd) game.accent.copy(alpha = .72f) else game.accent.copy(alpha = .42f))
-                    .border(if (odd) 3.dp else 1.dp, if (odd) game.accent else game.accent.copy(alpha = .22f), RoundedCornerShape(12.dp))
-                    .clickable { onAnswer(index.toString()) },
+                    .border(if (odd) 3.dp else 1.dp, if (odd) game.accent else game.accent.copy(alpha = .22f), RoundedCornerShape(12.dp)),
             )
         }
     }
@@ -926,6 +1042,30 @@ private fun ShadeBoard(game: GameDefinition, question: Question, onAnswer: (Stri
 
 @Composable
 private fun CodeBreakerBoard(game: GameDefinition, question: Question, onAnswer: (String) -> Unit) {
+    if (question.field.isNotEmpty()) {
+        Column(verticalArrangement = Arrangement.spacedBy(7.dp), modifier = Modifier.fillMaxWidth()) {
+            Text("● exact position · ○ right digit, wrong position", color = LocalIqExtras.current.muted, fontSize = 12.sp)
+            question.field.forEach { encoded ->
+                val parts = encoded.split("|")
+                Row(Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(game.accent.copy(alpha = .08f)).padding(7.dp)) {
+                    Text(parts.getOrElse(0) { "" }.toCharArray().joinToString("  "), fontWeight = FontWeight.Black, modifier = Modifier.weight(1f))
+                    Text("● ${parts.getOrElse(1) { "0" }}   ○ ${parts.getOrElse(2) { "0" }}", color = game.accent, fontWeight = FontWeight.Bold)
+                }
+            }
+            LazyVerticalGrid(
+                columns = GridCells.Fixed(2),
+                modifier = Modifier.fillMaxWidth().height(104.dp),
+                userScrollEnabled = false,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                items(question.choices) { choice ->
+                    PlayOrb(label = choice.toCharArray().joinToString(" "), color = game.accent, modifier = Modifier.height(46.dp)) { onAnswer(choice) }
+                }
+            }
+        }
+        return
+    }
     val length = question.answer.length.coerceIn(3, 4)
     var digits by remember(question.roundKey) { mutableStateOf(List(length) { 1 }) }
     var attempts by remember(question.roundKey) { mutableStateOf(emptyList<Pair<String, String>>()) }
@@ -1010,28 +1150,34 @@ private fun FocusTrackBoard(game: GameDefinition, question: Question, onAnswer: 
     val positions = mapOf("N" to Alignment.TopCenter, "E" to Alignment.CenterEnd, "S" to Alignment.BottomCenter, "W" to Alignment.CenterStart)
     var step by remember(question.roundKey) { mutableIntStateOf(0) }
     var ready by remember(question.roundKey) { mutableStateOf(false) }
+    var hitSteps by remember(question.roundKey) { mutableStateOf(setOf<Int>()) }
     LaunchedEffect(question.roundKey) {
         ready = false
+        hitSteps = emptySet()
         question.field.forEachIndexed { index, _ ->
             step = index
             delay((760L - game.difficulty * 45L).coerceAtLeast(300L))
         }
         ready = true
+        delay(350)
+        val requiredHits = ((question.field.size * 2) + 2) / 3
+        onAnswer(if (hitSteps.size >= requiredHits) question.answer else "missed")
     }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Box(Modifier.fillMaxWidth().height(154.dp).clip(RoundedCornerShape(22.dp)).background(game.accent.copy(alpha = .08f)).padding(14.dp)) {
             if (!ready) {
                 Box(
-                    Modifier.align(positions[question.field.getOrNull(step)] ?: Alignment.Center).size(28.dp).clip(CircleShape).background(game.accent),
+                    Modifier
+                        .align(positions[question.field.getOrNull(step)] ?: Alignment.Center)
+                        .size(38.dp)
+                        .gamePressable(pressedScale = .88f) { hitSteps = hitSteps + step }
+                        .clip(CircleShape)
+                        .background(game.accent),
                 )
             }
-            Text(if (ready) "Where did it stop?" else "Keep tracking", modifier = Modifier.align(Alignment.Center), color = LocalIqExtras.current.muted, fontWeight = FontWeight.Bold)
+            Text(if (ready) "Checking focus…" else "Tap the dot · ${hitSteps.size} hits", modifier = Modifier.align(Alignment.Center), color = LocalIqExtras.current.muted, fontWeight = FontWeight.Bold)
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            listOf("N", "E", "S", "W").forEach { position ->
-                PlayOrb(label = position, color = game.accent, modifier = Modifier.weight(1f).height(42.dp)) { if (ready) onAnswer(position) }
-            }
-        }
+        Text("Stay with each new position", color = game.accent, fontWeight = FontWeight.Bold)
     }
 }
 

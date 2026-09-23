@@ -117,7 +117,7 @@ class CatalogAndEngineTest {
                         val selected = round.answer.split("-").filter { it.isNotBlank() }
                         assertTrue("${game.id} selected options exist", selected.isNotEmpty() && selected.all { it in round.choices })
                     }
-                    PlayStyle.FocusTrack -> assertTrue("${game.id} final focus point", round.field.isNotEmpty() && round.answer == round.field.last())
+                    PlayStyle.FocusTrack -> assertTrue("${game.id} moving focus path", round.field.isNotEmpty() && round.answer == "tracked")
                     PlayStyle.StudyChoice -> {
                         val divider = round.field.indexOf("|")
                         assertTrue("${game.id} study/probe divider", divider > 0)
@@ -133,6 +133,13 @@ class CatalogAndEngineTest {
                     PlayStyle.GridPlacement -> {
                         val valid = round.field.first { it.startsWith("valid:") }.removePrefix("valid:").split("|")
                         assertTrue("${game.id} legal placement", round.answer in valid)
+                    }
+                    PlayStyle.NBack -> {
+                        val n = Regex("match (\\d+) steps").find(round.prompt)?.groupValues?.get(1)?.toInt()
+                            ?: error("Missing N value: ${round.prompt}")
+                        assertTrue("${game.id} n-back stream", round.field.size > n)
+                        val actual = round.field.last() == round.field[round.field.lastIndex - n]
+                        assertEquals(if (actual) "Yes" else "No", round.answer)
                     }
                     else -> Unit
                 }
@@ -180,9 +187,94 @@ class CatalogAndEngineTest {
         }
     }
 
+    @Test
+    fun colorWordConflictUsesTheSourcePaletteAndInkAnswer() {
+        val expected = setOf("Red", "Blue", "Green", "Yellow", "Purple")
+        listOf("stroop-test", "kids-color-focus", "seniors-inhibition-control").forEach { id ->
+            QuestionFactory.questionsFor(IqCatalog.game(id), seed = 551, count = 20).forEach { round ->
+                assertEquals(expected, round.choices.toSet())
+                assertEquals("stroop", round.field[0])
+                assertTrue(round.field[1] in expected)
+                assertTrue(round.field[2] in expected)
+                assertEquals(round.field[2], round.answer)
+                assertFalse(round.prompt.contains(round.answer))
+            }
+        }
+    }
+
+    @Test
+    fun everyCodeBreakerHasOneCodeConsistentWithAllClues() {
+        listOf("code-breaker", "expert-code-breaker", "master-code-breaker").forEach { id ->
+            QuestionFactory.questionsFor(IqCatalog.game(id), seed = 707, count = 20).forEach { round ->
+                assertEquals(4, round.field.size)
+                assertEquals(3, round.answer.toSet().size)
+                val allCodes = ('1'..'6').flatMap { a ->
+                    ('1'..'6').filter { it != a }.flatMap { b ->
+                        ('1'..'6').filter { it != a && it != b }.map { c -> "$a$b$c" }
+                    }
+                }
+                val survivors = allCodes.filter { code -> round.field.all { encoded ->
+                    val parts = encoded.split("|")
+                    codeClue(code, parts[0]) == (parts[1].toInt() to parts[2].toInt())
+                } }
+                assertEquals("$id unique clue solution", listOf(round.answer), survivors)
+                assertTrue("$id does not reveal secret as a clue", round.field.none { it.startsWith("${round.answer}|") })
+            }
+        }
+    }
+
+    @Test
+    fun operationSwitchAnswersMatchTheirDisplayedRule() {
+        listOf("operation-switch", "expert-operation-switch").forEach { id ->
+            QuestionFactory.questionsFor(IqCatalog.game(id), seed = 881, count = 30, tier = 20).forEach { round ->
+                val match = Regex("Rule: (SUM|DIFFERENCE|PRODUCT|LARGER|SMALLER)\\. Apply it to (\\d+) and (\\d+)").find(round.prompt)
+                    ?: error("Malformed operation round: ${round.prompt}")
+                val rule = match.groupValues[1]
+                val a = match.groupValues[2].toInt()
+                val b = match.groupValues[3].toInt()
+                val expected = when (rule) {
+                    "SUM" -> a + b
+                    "DIFFERENCE" -> kotlin.math.abs(a - b)
+                    "PRODUCT" -> a * b
+                    "LARGER" -> maxOf(a, b)
+                    else -> minOf(a, b)
+                }
+                assertEquals(expected.toString(), round.answer)
+            }
+        }
+    }
+
+    @Test
+    fun mentalMathAndSpeedComparisonAnswersMatchVisibleStimuli() {
+        listOf("mental-math", "kids-counting-sprint", "seniors-math-fluency", "expert-math-sprint").forEach { id ->
+            QuestionFactory.questionsFor(IqCatalog.game(id), seed = 993, count = 30, tier = 20).forEach { round ->
+                val expression = round.field.single()
+                val parts = expression.split(" ")
+                val expected = when (parts[1]) {
+                    "+" -> parts[0].toInt() + parts[2].toInt()
+                    "−" -> parts[0].toInt() - parts[2].toInt() + 3
+                    else -> parts[0].toInt() * parts[2].toInt()
+                }
+                assertEquals("$id $expression", expected.toString(), round.answer)
+            }
+        }
+        listOf("speed-comparison", "seniors-number-comparison").forEach { id ->
+            QuestionFactory.questionsFor(IqCatalog.game(id), seed = 994, count = 30, tier = 20).forEach { round ->
+                assertEquals(round.field.maxOf { it.toInt() }.toString(), round.answer)
+                assertTrue("$id should scale beyond two digits", round.field.all { it.length >= 5 })
+            }
+        }
+    }
+
     private fun expressionValue(expression: String): Int {
         val parts = expression.split(" ")
         val product = parts[0].toInt() * parts[2].toInt()
         return if (parts[3] == "+") product + parts[4].toInt() else product - parts[4].toInt()
+    }
+
+    private fun codeClue(code: String, guess: String): Pair<Int, Int> {
+        val exact = guess.zip(code).count { it.first == it.second }
+        val common = guess.count { it in code }
+        return exact to (common - exact)
     }
 }

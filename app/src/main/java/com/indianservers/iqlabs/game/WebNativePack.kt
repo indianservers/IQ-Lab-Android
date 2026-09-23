@@ -116,7 +116,7 @@ internal object WebNativePack {
         Family.WhatNext -> listOf("Inspect picture sequences", "Build a correct-answer combo", "Reveal the pattern rule")
         Family.ColorDiff -> listOf("Compare calibrated shade steps", "Use border cues with colour", "Adapt visual difficulty")
         Family.Rsvp -> listOf("Read at a level-adjusted pace", "See live words-per-minute", "Calibrate speed by comprehension")
-        Family.CodeBreaker -> listOf("Edit native number pegs", "Review exact and misplaced clues", "Use a limited attempt history")
+        Family.CodeBreaker -> listOf("Read exact and misplaced clues", "Compare four possible codes", "Deduce one consistent answer")
         null -> listOf("Use native controls", "Receive immediate feedback", "Progress through adaptive levels")
     }
 
@@ -237,9 +237,9 @@ internal object WebNativePack {
     }
 
     private fun stroopInk(game: GameDefinition, random: Random): Question {
-        val ink = listOf("RED", "BLUE", "GREEN", "GOLD")[random.nextInt(4)]
-        val word = listOf("RED", "BLUE", "GREEN", "GOLD")[random.nextInt(4)]
-        val inks = listOf("RED", "BLUE", "GREEN", "GOLD")
+        val inks = listOf("Red", "Blue", "Green", "Yellow", "Purple")
+        val ink = inks[random.nextInt(inks.size)]
+        val word = inks[random.nextInt(inks.size)]
         return q(game, "Name the INK colour, not the written word.", inks, ink, "Ink is $ink.", PlayStyle.Targets, listOf("stroop", word, ink))
     }
 
@@ -249,9 +249,11 @@ internal object WebNativePack {
             game.id.contains("dual") || game.id.contains("nback") -> 2
             else -> 1
         }.coerceAtMost(1 + tier / 6)
-        val stream = List(5 + n) { listOf("A", "B", "C", "D")[random.nextInt(4)] }
-        val match = stream.last() == stream[stream.lastIndex - n]
-        return q(game, "Stream ${stream.joinToString(" ")}. Echo $n back? Smash Yes or No.", listOf("Yes", "No"), if (match) "Yes" else "No", "Compare last with $n back.", PlayStyle.GoNoGo)
+        val stream = MutableList(5 + n) { random.nextInt(0, 9) }
+        val match = random.nextBoolean()
+        val comparison = stream.lastIndex - n
+        stream[stream.lastIndex] = if (match) stream[comparison] else (stream[comparison] + random.nextInt(1, 9)) % 9
+        return q(game, "Watch the 3×3 grid. Did the final position match $n steps back?", listOf("Yes", "No"), if (match) "Yes" else "No", "Compare the final flash with $n back.", PlayStyle.NBack, stream.map { it.toString() })
     }
 
     private fun mentalMath(game: GameDefinition, random: Random, tier: Int): Question {
@@ -260,12 +262,12 @@ internal object WebNativePack {
         val op = listOf("+", "−", "×")[random.nextInt(3)]
         val answer = when (op) {
             "−" -> a + 3 - b
-            "×" -> a * (1 + tier / 10)
+            "×" -> a * b
             else -> a + b
         }
         val shown = when (op) {
             "−" -> "$a − $b + 3"
-            "×" -> "$a × ${1 + tier / 10}"
+            "×" -> "$a × $b"
             else -> "$a + $b"
         }
         return q(game, "Lock $shown.", listOf(answer.toString(), (answer + 1).toString(), (answer - 1).toString(), (answer + 3).toString()).distinct(), answer.toString(), "$shown = $answer.", PlayStyle.Keypad, listOf(shown))
@@ -423,13 +425,15 @@ internal object WebNativePack {
     private fun focusDot(game: GameDefinition, random: Random): Question {
         val pads = listOf("N", "E", "S", "W")
         val path = List(4 + game.difficulty / 2) { pads[random.nextInt(4)] }
-        val live = path.last()
-        return q(game, "Follow the moving dot, then tap its final position.", pads, live, "The dot finished at $live.", PlayStyle.FocusTrack, path)
+        return q(game, "Tap the moving dot at each stop. Keep your attention on the arena.", listOf("tracked", "missed"), "tracked", "You stayed with the moving target.", PlayStyle.FocusTrack, path)
     }
 
     private fun speedCompare(game: GameDefinition, random: Random, tier: Int): Question {
-        val a = random.nextInt(3, 40 + tier * 3)
-        val b = random.nextInt(3, 40 + tier * 3).let { if (it == a) it + 2 else it }
+        val digits = if (game.id.startsWith("kids-")) (1 + tier / 8).coerceIn(1, 3) else (3 + tier / 7).coerceIn(3, 6)
+        val lower = when (digits) { 1 -> 1; 2 -> 10; 3 -> 100; 4 -> 1_000; 5 -> 10_000; else -> 100_000 }
+        val upper = when (digits) { 1 -> 10; 2 -> 100; 3 -> 1_000; 4 -> 10_000; 5 -> 100_000; else -> 1_000_000 }
+        val a = random.nextInt(lower, upper)
+        val b = random.nextInt(lower, upper).let { if (it == a) if (it + 1 < upper) it + 1 else it - 1 else it }
         val answer = maxOf(a, b).toString()
         return q(game, "Smash the larger number.", listOf(a.toString(), b.toString()), answer, "$answer is larger.", PlayStyle.Targets, listOf(a.toString(), b.toString()))
     }
@@ -477,11 +481,34 @@ internal object WebNativePack {
     }
 
     private fun logicBridge(game: GameDefinition, random: Random): Question {
-        val tiles = (1..9).shuffled(random).take(6)
-        val valid = tiles.filter { it % 2 == 0 }.map { it.toString() }.sorted()
+        val ruleIndex = random.nextInt(4)
+        val label = when (ruleIndex) {
+            0 -> "Even tiles hold the bridge."
+            1 -> "Multiples of 3 hold the bridge."
+            2 -> "Tiles greater than 10 hold the bridge."
+            else -> "Tiles an odd distance from 20 hold the bridge."
+        }
+        val source = when (ruleIndex) {
+            0 -> (1..12).toList()
+            1 -> (2..18).toList()
+            2 -> listOf(5, 8, 10, 11, 13, 15, 18, 20, 22)
+            else -> (9..17).toList()
+        }
+        val accepts: (Int) -> Boolean = { value ->
+            when (ruleIndex) {
+                0 -> value % 2 == 0
+                1 -> value % 3 == 0
+                2 -> value > 10
+                else -> kotlin.math.abs(20 - value) % 2 == 1
+            }
+        }
+        val tiles = source.shuffled(random).take(6).toMutableList().also { picked ->
+            if (picked.none(accepts)) picked[picked.lastIndex] = source.first(accepts)
+        }
+        val valid = tiles.filter(accepts).map { it.toString() }.sorted()
         val answer = valid.joinToString("-")
         val pool = tiles.map { it.toString() }
-        return q(game, "Even tiles hold the bridge. Select every even tile.", pool, answer, "Bridge tiles: ${valid.joinToString()}.", PlayStyle.MultiSelect, pool)
+        return q(game, "$label Select every valid tile.", pool, answer, "Bridge tiles: ${valid.joinToString()}.", PlayStyle.MultiSelect, pool)
     }
 
     private fun switchCircuit(game: GameDefinition, random: Random): Question {
@@ -502,13 +529,14 @@ internal object WebNativePack {
     }
 
     private fun truthLive(game: GameDefinition, random: Random): Question {
-        val puzzles = listOf(
-            Triple("A: B lies. B: A and I both tell the truth. Exactly one lies. Who lies?", "B", listOf("A", "Both", "Neither")),
-            Triple("Knights truth, knaves lie. A: B is a knave. B: we are both knaves. A is?", "Knight", listOf("Knave", "Both", "Unknown")),
-        )
-        val item = puzzles[random.nextInt(puzzles.size)]
-        val choices = (listOf(item.second) + item.third).shuffled(random)
-        return q(game, "${item.first} Smash the ruling.", choices, item.second, item.second, PlayStyle.Targets, choices)
+        val people = listOf("Asha", "Ben", "Ciro").shuffled(random)
+        val truth = people[random.nextInt(people.size)]
+        val liar = people.first { it != truth }
+        val lines = people.map { speaker ->
+            if (speaker == truth) "$speaker: $liar is lying."
+            else "$speaker: $truth is lying."
+        }
+        return q(game, "Exactly one person tells the truth. ${lines.joinToString(" ")} Who is truthful?", people, truth, "$truth is the single truth-teller.", PlayStyle.Targets)
     }
 
     private fun gridLock(game: GameDefinition, random: Random): Question {
@@ -521,11 +549,20 @@ internal object WebNativePack {
     }
 
     private fun memoryWeave(game: GameDefinition, random: Random, tier: Int): Question {
-        val shapes = listOf("▲", "●", "■")
-        val colors = listOf("R", "B", "G")
-        val seq = List(3 + tier / 8) { "${shapes[random.nextInt(3)]}${colors[random.nextInt(3)]}" }
-        val answer = seq.joinToString(" → ")
-        return q(game, "Replay the bound shape-colour chain.", listOf(answer) + List(3) { seq.shuffled(random).joinToString(" → ") }.filter { it != answer }.take(3), answer, answer, PlayStyle.Sequence, seq)
+        val shapes = listOf("▲", "●", "■", "◆", "★")
+        val colors = listOf("Red", "Blue", "Green", "Yellow", "Purple")
+        val length = (4 + tier / 4).coerceIn(4, 8)
+        val seq = List(length) { "${shapes[random.nextInt(shapes.size)]} ${colors[random.nextInt(colors.size)]}" }
+        val position = random.nextInt(seq.size)
+        val answer = seq[position]
+        val candidates = (listOf(answer) + List(8) { "${shapes[random.nextInt(shapes.size)]} ${colors[random.nextInt(colors.size)]}" })
+            .distinct().take(4).toMutableList()
+        while (candidates.size < 4) {
+            val candidate = "${shapes[random.nextInt(shapes.size)]} ${colors[random.nextInt(colors.size)]}"
+            if (candidate !in candidates) candidates += candidate
+        }
+        val probes = candidates.shuffled(random)
+        return q(game, "Study the sequence. Which item was at position ${position + 1}?", probes, answer, "Position ${position + 1} was $answer.", PlayStyle.StudyChoice, seq + "|" + probes)
     }
 
     private fun ruleMatrix(game: GameDefinition, random: Random): Question {
@@ -557,10 +594,23 @@ internal object WebNativePack {
     }
 
     private fun numberCipher(game: GameDefinition, random: Random, tier: Int): Question {
-        val a = random.nextInt(2, 6)
-        val b = random.nextInt(2, 6)
-        val answer = (a * b + 1).toString()
-        return q(game, "⋆ means × then +1. Examples 2⋆3=7. Lock $a ⋆ $b.", listOf(answer, (a + b).toString(), (a * b).toString(), (a * b + 2).toString()).distinct(), answer, "Multiply then add 1.", PlayStyle.Keypad, listOf("$a ⋆ $b"))
+        val ruleIndex = random.nextInt(if (tier >= 10) 4 else 2)
+        val calculation: (Int, Int) -> Int = when (ruleIndex) {
+            0 -> { a, b -> a * 2 + b }
+            1 -> { a, b -> a + b * 3 }
+            2 -> { a, b -> a * a - b }
+            else -> { a, b -> a * b - a }
+        }
+        val examples = List(3) {
+            val a = random.nextInt(3, 10)
+            val b = random.nextInt(1, if (ruleIndex == 2) a + 1 else 9)
+            "$a, $b → ${calculation(a, b)}"
+        }
+        val a = random.nextInt(3, 10)
+        val b = random.nextInt(1, if (ruleIndex == 2) a + 1 else 9)
+        val answer = calculation(a, b).toString()
+        val choices = listOf(answer, (answer.toInt() + 2).toString(), (answer.toInt() - 1).coerceAtLeast(0).toString(), (answer.toInt() + 5).toString()).distinct()
+        return q(game, "Infer the hidden rule from the examples. Lock the value for $a, $b.", choices, answer, "The hidden rule gives $answer.", PlayStyle.Keypad, examples + "$a, $b → ?")
     }
 
     private fun constraintMaze(game: GameDefinition, random: Random): Question {
@@ -575,18 +625,27 @@ internal object WebNativePack {
     private fun opSwitch(game: GameDefinition, random: Random, tier: Int): Question {
         val a = random.nextInt(2, 9 + tier)
         val b = random.nextInt(2, 8)
-        val times = random.nextBoolean()
-        val answer = if (times) a * b else a + b
-        return q(game, "This round + means ${if (times) "multiply" else "add"}. Lock $a + $b.", listOf(answer.toString(), (a + b).toString(), (a * b).toString(), (a - b).toString()).distinct(), answer.toString(), "Honor the live operator.", PlayStyle.Keypad, listOf("$a + $b"))
+        val rules = listOf("SUM", "DIFFERENCE", "PRODUCT", "LARGER", "SMALLER").take((2 + tier / 5).coerceIn(2, 5))
+        val rule = rules[random.nextInt(rules.size)]
+        val answer = when (rule) {
+            "SUM" -> a + b
+            "DIFFERENCE" -> kotlin.math.abs(a - b)
+            "PRODUCT" -> a * b
+            "LARGER" -> maxOf(a, b)
+            else -> minOf(a, b)
+        }
+        return q(game, "Rule: $rule. Apply it to $a and $b.", listOf(answer.toString(), (answer + 2).toString(), (answer - 1).coerceAtLeast(0).toString(), (answer + 5).toString()).distinct(), answer.toString(), "$rule gives $answer.", PlayStyle.Keypad, listOf(rule, "$a · $b"))
     }
 
     private fun spatialStack(game: GameDefinition, random: Random): Question {
-        val turns = listOf("CW", "CW", "CCW", "CW").shuffled(random).take(3)
         val face = listOf("N", "E", "S", "W")
-        var idx = 0
-        turns.forEach { idx = if (it == "CW") (idx + 1) % 4 else (idx + 3) % 4 }
+        val start = random.nextInt(face.size)
+        val turns = List((3 + game.difficulty / 2).coerceIn(3, 7)) { listOf(-1, 0, 1)[random.nextInt(3)] }
+        var idx = start
+        turns.forEach { idx = (idx + it).mod(4) }
         val answer = face[idx]
-        return q(game, "Start North. Turns ${turns.joinToString(" ")}. Smash the final facing.", face, answer, "Facing $answer.", PlayStyle.Targets, face)
+        val labels = turns.map { if (it < 0) "Left" else if (it > 0) "Right" else "Same" }
+        return q(game, "Start ${face[start]}. Turns ${labels.joinToString(" → ")}. Select the final facing.", face, answer, "Facing $answer.", PlayStyle.Targets, listOf(face[start]) + labels)
     }
 
     private fun analogies(game: GameDefinition, random: Random): Question {
@@ -623,9 +682,23 @@ internal object WebNativePack {
     }
 
     private fun animalLine(game: GameDefinition, random: Random): Question {
-        val pack = listOf("🐭", "🐰", "🐶", "🐘").shuffled(random)
-        val answer = listOf("🐭", "🐰", "🐶", "🐘").joinToString(" → ")
-        return q(game, "Tap smallest to biggest: ${pack.joinToString(" ")}.", listOf(answer, pack.joinToString(" → "), pack.reversed().joinToString(" → "), "🐶 → 🐭 → 🐘 → 🐰"), answer, "Size order is $answer.", PlayStyle.Sequence, pack)
+        data class Animal(val icon: String, val name: String, val size: Int, val speed: Int, val legs: Int)
+        val animals = listOf(
+            Animal("🐭", "Mouse", 1, 2, 4), Animal("🐰", "Rabbit", 2, 4, 4), Animal("🐶", "Dog", 3, 3, 4),
+            Animal("🐘", "Elephant", 5, 1, 4), Animal("🐢", "Turtle", 2, 1, 4), Animal("🦒", "Giraffe", 5, 3, 4),
+            Animal("🐔", "Chicken", 2, 2, 2), Animal("🕷", "Spider", 1, 2, 8), Animal("🐍", "Snake", 3, 2, 0),
+        )
+        val rule = listOf("size", "speed", "legs")[random.nextInt(3)]
+        val value: (Animal) -> Int = when (rule) {
+            "speed" -> { animal -> animal.speed }
+            "legs" -> { animal -> animal.legs }
+            else -> { animal -> animal.size }
+        }
+        val pack = animals.shuffled(random).distinctBy(value).take(4).shuffled(random)
+        val ordered = pack.sortedWith(compareBy<Animal> { value(it) }.thenBy { it.name })
+        val answer = ordered.joinToString(" → ") { it.icon }
+        val label = when (rule) { "speed" -> "slowest to fastest"; "legs" -> "fewest legs to most legs"; else -> "smallest to biggest" }
+        return q(game, "Tap the animals $label.", listOf(answer, pack.joinToString(" → ") { it.icon }, pack.reversed().joinToString(" → ") { it.icon }), answer, "Correct order: $answer.", PlayStyle.Sequence, pack.map { it.icon })
     }
 
     private fun puzzlePath(game: GameDefinition, random: Random): Question {
@@ -662,8 +735,37 @@ internal object WebNativePack {
     }
 
     private fun codeBreaker(game: GameDefinition, random: Random): Question {
-        val length = if (game.level.ordinal >= 4) 4 else 3
-        val secret = List(length) { random.nextInt(1, 7) }.joinToString("")
-        return q(game, "Crack the $length-digit code. Tap a peg to change it.", listOf(secret, "skip"), secret, "Code was $secret.", PlayStyle.CodeBreaker)
+        val digits = ('1'..'6').toList()
+        val secret = digits.shuffled(random).take(3).joinToString("")
+        val allCodes = digits.flatMap { a -> digits.filter { it != a }.flatMap { b -> digits.filter { it != a && it != b }.map { c -> "$a$b$c" } } }
+        fun clue(guess: String): Pair<Int, Int> {
+            val exact = guess.zip(secret).count { it.first == it.second }
+            val common = guess.count { it in secret }
+            return exact to (common - exact)
+        }
+        fun clueFor(code: String, guess: String): Pair<Int, Int> {
+            val exact = guess.zip(code).count { it.first == it.second }
+            val common = guess.count { it in code }
+            return exact to (common - exact)
+        }
+        val guesses = mutableListOf<String>()
+        var survivors = allCodes
+        while (survivors.size > 1 && guesses.size < 4) {
+            val guess = allCodes.filter { it != secret && it !in guesses }.minBy { candidate ->
+                val expected = clue(candidate)
+                survivors.count { code -> clueFor(code, candidate) == expected }
+            }
+            guesses += guess
+            val expected = clue(guess)
+            survivors = survivors.filter { code -> clueFor(code, guess) == expected }
+        }
+        check(survivors == listOf(secret)) { "Could not build a unique code puzzle" }
+        while (guesses.size < 4) {
+            val extra = allCodes.shuffled(random).first { it != secret && it !in guesses && clue(it).let { result -> result.first + result.second > 0 } }
+            guesses += extra
+        }
+        val options = (listOf(secret) + allCodes.filter { it != secret }.shuffled(random).take(3)).toMutableList()
+        val clueCards = guesses.map { guess -> val result = clue(guess); "$guess|${result.first}|${result.second}" }
+        return q(game, "Use the clue cards to identify the only consistent 3-digit code.", options, secret, "Code was $secret.", PlayStyle.CodeBreaker, clueCards)
     }
 }
