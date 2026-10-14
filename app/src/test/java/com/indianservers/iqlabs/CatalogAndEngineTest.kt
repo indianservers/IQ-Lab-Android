@@ -4,6 +4,7 @@ import com.indianservers.iqlabs.game.LevelBlueprint
 import com.indianservers.iqlabs.game.PlayStyle
 import com.indianservers.iqlabs.game.QuestionFactory
 import com.indianservers.iqlabs.game.WebNativePack
+import com.indianservers.iqlabs.game.SpeedReadingStories
 import com.indianservers.iqlabs.model.IqCatalog
 import com.indianservers.iqlabs.model.LevelId
 import org.junit.Assert.assertEquals
@@ -12,6 +13,25 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class CatalogAndEngineTest {
+    @Test
+    fun speedReadingStoriesMeetContentRequirements() {
+        val stories = SpeedReadingStories.entries
+        assertEquals(30, stories.size)
+        assertEquals(30, stories.map { it.passage }.distinct().size)
+        stories.forEach { story ->
+            assertTrue(story.passage.split(Regex("\\s+")).size >= 50)
+            assertTrue(story.question.isNotBlank())
+            assertTrue(story.explanation.isNotBlank())
+            assertEquals(4, (story.distractors + story.answer).distinct().size)
+        }
+        listOf("fast-reading", "seniors-rapid-reading").forEach { id ->
+            QuestionFactory.questionsFor(IqCatalog.game(id), seed = 91, count = 30).forEach { round ->
+                assertTrue(round.field.size >= 50)
+                assertTrue(stories.any { it.passage == round.field.joinToString(" ") && it.answer == round.answer })
+            }
+        }
+    }
+
     @Test
     fun catalogContainsOnlyTheUniqueWebGames() {
         assertEquals(152, IqCatalog.games.size)

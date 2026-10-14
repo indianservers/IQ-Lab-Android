@@ -727,6 +727,11 @@ internal object WebNativePack {
     }
 
     private fun rsvp(game: GameDefinition, random: Random): Question {
+        if (game.id != "kids-word-pop") {
+            val story = SpeedReadingStories.entries.random(random)
+            return q(game, story.question, (story.distractors + story.answer).shuffled(random), story.answer,
+                story.explanation, PlayStyle.Reading, story.passage.split(" "))
+        }
         val names = listOf("Mira", "Ravi", "Nia", "Omar")
         val name = names[random.nextInt(names.size)]
         val topic = listOf("sleep", "focus", "gardens", "sonar")[random.nextInt(4)]
