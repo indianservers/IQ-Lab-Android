@@ -33,6 +33,9 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,6 +67,19 @@ import com.indianservers.iqlabs.model.GameDefinition
 import com.indianservers.iqlabs.ui.components.SoftCard
 import com.indianservers.iqlabs.ui.theme.LocalIqExtras
 import kotlinx.coroutines.delay
+
+class RoundHints {
+    var question: Question? = null
+    var nextMove: () -> String = { "Look at the current rule and choose the matching answer." }
+}
+private val LocalRoundHints = staticCompositionLocalOf { RoundHints() }
+private val LocalRoundProgress = staticCompositionLocalOf<() -> Unit> { {} }
+private val LocalRoundMistake = staticCompositionLocalOf<() -> Unit> { {} }
+@Composable
+private fun NextMove(advice: () -> String) {
+    val hints = LocalRoundHints.current
+    SideEffect { hints.nextMove = advice }
+}
 
 private val playPalette = listOf(
     Color(0xFF6C5CE7), Color(0xFF13D8FF), Color(0xFF8DE640), Color(0xFFFFB02E),
@@ -105,9 +121,25 @@ fun PlayRound(
     onAnswer: (String) -> Unit,
     modifier: Modifier = Modifier,
     sound: Boolean = true,
+    hints: RoundHints = remember { RoundHints() },
+    onMistake: () -> Unit = {},
+    onProgress: () -> Unit = {},
 ) {
     val style = PlayStyleResolver.forRound(game, question)
     val cue = PlayStyleResolver.cue(game, question)
+    CompositionLocalProvider(LocalRoundHints provides hints, LocalRoundMistake provides onMistake, LocalRoundProgress provides onProgress) {
+    if (hints.question !== question) {
+        hints.question = question
+        hints.nextMove = { when(style) {
+            PlayStyle.Swipe -> "Swipe ${question.answer}. ${question.detail}"
+            PlayStyle.Keypad, PlayStyle.SymbolKey -> "Enter ${question.answer}, then submit. ${question.detail}"
+            PlayStyle.Hold -> "Press and hold the matching target. ${question.detail}"
+            PlayStyle.FocusTrack -> "Tap the moving dot as it appears. ${question.detail}"
+            PlayStyle.Shade -> "Tap shade tile ${(question.answer.toIntOrNull() ?: 0)+1}, counting from the top left."
+            PlayStyle.Wait -> "Wait for the signal to turn green, then tap."
+            else -> "Choose ${question.answer}. ${question.detail}"
+        } }
+    }
     SoftCard(modifier = modifier, padding = 12.dp) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(playVerb(style), color = game.accent, fontWeight = FontWeight.Black, fontSize = 11.sp)
@@ -161,6 +193,7 @@ fun PlayRound(
         AnimatedVisibility(feedback != null) {
             Text(feedback.orEmpty(), color = game.accent, fontWeight = FontWeight.Bold)
         }
+    }
     }
 }
 
@@ -461,6 +494,11 @@ private fun GridBoard(game: GameDefinition, question: Question, onAnswer: (Strin
     var revealed by remember(question.roundKey) { mutableStateOf(true) }
     var revealedCount by remember(question.roundKey) { mutableIntStateOf(0) }
     var selected by remember(question.roundKey) { mutableStateOf(setOf<Int>()) }
+    NextMove {
+        val remove = (selected - lit).firstOrNull()
+        val add = (lit - selected).firstOrNull()
+        when { revealed -> "Watch the highlighted cells first."; remove != null -> "Deselect cell $remove."; add != null -> "Select cell $add."; else -> "Tap Lock pattern." }
+    }
     LaunchedEffect(question.roundKey) {
         revealed = true
         revealedCount = 0
@@ -514,6 +552,7 @@ private fun SequenceBoard(game: GameDefinition, question: Question, onAnswer: (S
     var revealed by remember(question.roundKey) { mutableStateOf(!orderingGame) }
     var revealIndex by remember(question.roundKey) { mutableIntStateOf(0) }
     var built by remember(question.roundKey) { mutableStateOf(listOf<String>()) }
+    NextMove { if (revealed) "Watch the sequence first." else "Tap ${sequence.getOrNull(built.size) ?: sequence.lastOrNull()}." }
     val tone = remember { ToneGenerator(AudioManager.STREAM_MUSIC, 35) }
     DisposableEffect(Unit) { onDispose { tone.release() } }
     LaunchedEffect(revealIndex, revealed, sound) {
@@ -703,6 +742,16 @@ private fun MatchBoard(game: GameDefinition, question: Question, onAnswer: (Stri
     var moves by remember(question.roundKey) { mutableIntStateOf(0) }
     var mistakes by remember(question.roundKey) { mutableIntStateOf(0) }
     var pendingClose by remember(question.roundKey) { mutableStateOf(false) }
+    val madeProgress = LocalRoundProgress.current
+    val loseLife = LocalRoundMistake.current
+    NextMove {
+        if (pendingClose) "Wait for the mismatched pair to close." else {
+            val start = first ?: tiles.indices.firstOrNull { it !in matched }
+            val next = start?.let { a -> tiles.indices.firstOrNull { it != a && it !in matched && tiles[it] == tiles[a] } }
+            val target = if (first != null) next else start
+            if (target == null) "All pairs are matched." else "Tap row ${target / 4 + 1}, column ${target % 4 + 1} (${tiles[target]})."
+        }
+    }
     val columns = 4
     LaunchedEffect(pendingClose) {
         if (pendingClose) {
@@ -741,12 +790,12 @@ private fun MatchBoard(game: GameDefinition, question: Question, onAnswer: (Stri
                         moves++
                         if (tiles[prior] == tiles[index] && prior != index) {
                             val next = matched + prior + index
-                            matched = next
+                            matched = next; madeProgress()
                             open = emptySet()
                             first = null
                             if (next.size == tiles.size) onAnswer(question.answer)
                         } else {
-                            mistakes++
+                            mistakes++; loseLife()
                             pendingClose = true
                         }
                     }
@@ -839,6 +888,7 @@ private fun SudokuBoard(game: GameDefinition, question: Question, onAnswer: (Str
     var cells by remember(question.roundKey) { mutableStateOf(given) }
     var selected by remember(question.roundKey) { mutableIntStateOf(given.indexOfFirst { it == 0 }.coerceAtLeast(0)) }
     var history by remember(question.roundKey) { mutableStateOf(emptyList<List<Int>>()) }
+    NextMove { com.indianservers.iqlabs.game.MoveAdvice.latin(cells, given) }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         LazyVerticalGrid(
             columns = GridCells.Fixed(4),
@@ -904,6 +954,9 @@ private fun TowerBoard(game: GameDefinition, question: Question, onAnswer: (Stri
     var holding by remember(question.roundKey) { mutableStateOf<Int?>(null) }
     var moves by remember(question.roundKey) { mutableIntStateOf(0) }
     var illegal by remember(question.roundKey) { mutableIntStateOf(0) }
+    val madeProgress = LocalRoundProgress.current
+    val loseLife = LocalRoundMistake.current
+    NextMove { com.indianservers.iqlabs.game.MoveAdvice.tower(pegs, holding) }
     fun tap(peg: Int) {
         val hand = holding
         val stacks = pegs.map { it.toMutableList() }
@@ -918,10 +971,10 @@ private fun TowerBoard(game: GameDefinition, question: Question, onAnswer: (Stri
                 stacks[peg].add(hand)
                 holding = null
                 pegs = stacks
-                moves++
+                moves++; madeProgress()
                 if (stacks[2].size == discs) onAnswer("done")
             } else {
-                illegal++
+                illegal++; loseLife()
             }
         }
     }
@@ -980,6 +1033,9 @@ private fun TrailBoard(game: GameDefinition, question: Question, onAnswer: (Stri
     }
     var tapped by remember(question.roundKey) { mutableStateOf(listOf<String>()) }
     var errors by remember(question.roundKey) { mutableIntStateOf(0) }
+    val madeProgress = LocalRoundProgress.current
+    val loseLife = LocalRoundMistake.current
+    NextMove { "Tap ${needed.getOrNull(tapped.size) ?: "the final highlighted token"} next." }
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text("Path ${tapped.size}/${needed.size}", fontWeight = FontWeight.Bold, color = game.accent)
@@ -1003,9 +1059,9 @@ private fun TrailBoard(game: GameDefinition, question: Question, onAnswer: (Stri
                 val expected = needed.getOrNull(tapped.size)
                 if (token == expected) {
                     val next = tapped + token
-                    tapped = next
+                    tapped = next; madeProgress()
                     if (next == needed) onAnswer("clear")
-                } else errors++
+                } else { errors++; loseLife() }
             }
         }
     }
@@ -1107,6 +1163,12 @@ private fun CircuitBoard(game: GameDefinition, question: Question, onAnswer: (St
         "XOR" -> a xor b
         else -> a || b
     }
+    NextMove {
+        if (output == target) "Tap Test circuit." else {
+            val pair = listOf(false to false, false to true, true to false, true to true).filter { (x,y) -> (when(gate) { "AND" -> x && y; "XOR" -> x xor y; else -> x || y }) == target }.minBy { (x,y) -> (if(x==a)0 else 1)+(if(y==b)0 else 1) }
+            "Toggle ${if(pair.first != a) "A" else "B"}."
+        }
+    }
     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
         Text("$gate gate · Target ${if (target) "ON" else "OFF"}", fontWeight = FontWeight.Black, color = game.accent, fontSize = 18.sp)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth()) {
@@ -1124,6 +1186,12 @@ private fun CircuitBoard(game: GameDefinition, question: Question, onAnswer: (St
 @Composable
 private fun MultiSelectBoard(game: GameDefinition, question: Question, onAnswer: (String) -> Unit) {
     var selected by remember(question.roundKey) { mutableStateOf(setOf<String>()) }
+    NextMove {
+        val target = question.answer.split("-").toSet()
+        val remove = (selected - target).firstOrNull()
+        val add = (target - selected).firstOrNull()
+        when { remove != null -> "Deselect $remove."; add != null -> "Select $add."; else -> "Tap Lock selection." }
+    }
     Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
         Text("Selected ${selected.size}", color = LocalIqExtras.current.muted, fontWeight = FontWeight.Bold)
         LazyVerticalGrid(
@@ -1259,6 +1327,7 @@ private fun DeductionBoard(game: GameDefinition, question: Question, onAnswer: (
 private fun GridPlacementBoard(game: GameDefinition, question: Question, onAnswer: (String) -> Unit) {
     val grid = question.field.take(4)
     val valid = question.field.firstOrNull { it.startsWith("valid:") }?.removePrefix("valid:")?.split("|").orEmpty()
+    NextMove { "Tap the ${valid.firstOrNull() ?: question.answer} colour choice." }
     val colourMap = mapOf("Teal" to Color(0xFF28B8A8), "Gold" to Color(0xFFFFB02E), "Violet" to Color(0xFF8B5CFF), "Coral" to Color(0xFFFF776D), "Locked" to Color(0xFF667085))
     Column(verticalArrangement = Arrangement.spacedBy(10.dp), horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
         LazyVerticalGrid(

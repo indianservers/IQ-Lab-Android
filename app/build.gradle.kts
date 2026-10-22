@@ -20,6 +20,12 @@ android {
     }
 
     buildTypes {
+        debug {
+            // Side-by-side real-device QA preserves an installed app signed elsewhere.
+            if (providers.gradleProperty("puzzleQa").orNull == "true") {
+                applicationIdSuffix = ".puzzleqa"
+            }
+        }
         release {
             optimization {
                 enable = true

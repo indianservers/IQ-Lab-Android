@@ -119,6 +119,16 @@ fun GameArt(
     modifier: Modifier = Modifier,
     contentScale: ContentScale = ContentScale.Crop,
 ) {
+    val workshopKind=com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(game.id)
+    if(workshopKind!=null) {
+        com.indianservers.iqlabs.workshop.WorkshopHero(workshopKind,modifier.clip(RoundedCornerShape(18.dp)).background(game.accent.copy(alpha=.08f)))
+        return
+    }
+    val puzzleKind = com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(game.id)
+    if (puzzleKind != null) {
+        com.indianservers.iqlabs.puzzle.PuzzleHero(puzzleKind, modifier.clip(RoundedCornerShape(18.dp)).background(game.accent.copy(alpha = .08f)))
+        return
+    }
     Box(modifier.clip(RoundedCornerShape(18.dp))) {
         Image(
             painter = painterResource(gameArtRes(game)),

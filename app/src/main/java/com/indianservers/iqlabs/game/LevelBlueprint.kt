@@ -36,7 +36,7 @@ object LevelBlueprint {
         "Optimization", "Endurance", "Expert", "Grandmaster", "Apex",
     )
 
-    val games: List<BlueprintGame> = IqCatalog.games.map { game ->
+    val games: List<BlueprintGame> = IqCatalog.games.filter { com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(it.id) == null && com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(it.id) == null }.map { game ->
         BlueprintGame(
             workbookId = game.id.uppercase().replace('-', '_'),
             gameName = game.name,
@@ -73,5 +73,5 @@ object LevelBlueprint {
     fun stageFor(catalogId: String, level: Int): BlueprintStage? =
         stagesForCatalogGame(catalogId).firstOrNull { it.level == level.coerceIn(1, maxLevelFor(catalogId)) }
 
-    fun mappedCatalogGamesArePlayable(): Boolean = games.size == IqCatalog.games.size
+    fun mappedCatalogGamesArePlayable(): Boolean = games.all { it.catalogId in IqCatalog.playableIds }
 }

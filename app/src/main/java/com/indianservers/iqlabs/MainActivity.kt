@@ -73,6 +73,10 @@ import com.indianservers.iqlabs.ui.components.GameRowCard
 import com.indianservers.iqlabs.ui.components.IqBottomBar
 import com.indianservers.iqlabs.ui.components.IqPage
 import com.indianservers.iqlabs.ui.play.PlayRound
+import com.indianservers.iqlabs.ui.play.RoundHints
+import com.indianservers.iqlabs.ui.components.PlayAssistButtons
+import com.indianservers.iqlabs.ui.components.rememberQuickPraise
+import com.indianservers.iqlabs.ui.components.QuickPraiseBanner
 import com.indianservers.iqlabs.ui.components.IqProgressBar
 import com.indianservers.iqlabs.ui.components.SoftCard
 import com.indianservers.iqlabs.ui.levelAccent
@@ -179,7 +183,8 @@ private class ProgressStore(context: Context) {
 private fun IqLabApp() {
     val context = LocalContext.current
     val store = remember(context) { ProgressStore(context) }
-    var screen by remember { mutableStateOf<Screen>(if (store.onboardingDone) Screen.Main() else Screen.Onboarding) }
+    var resumePuzzle by rememberSaveable { mutableStateOf<String?>(null) }
+    var screen by remember { mutableStateOf<Screen>(if (resumePuzzle != null) Screen.Play(resumePuzzle!!) else if (store.onboardingDone) Screen.Main() else Screen.Onboarding) }
     val favorites = remember { mutableStateMapOf<String, Boolean>().also { map -> store.favorites().forEach { map[it] = true } } }
     var xp by rememberSaveable { mutableIntStateOf(store.xp) }
     var streak by rememberSaveable { mutableIntStateOf(store.streak) }
@@ -192,7 +197,11 @@ private fun IqLabApp() {
     var appColorTheme by rememberSaveable { mutableStateOf(store.appColorTheme) }
     var metrics by remember { mutableStateOf(store.metrics()) }
 
-    fun go(next: Screen) { screen = next }
+    fun go(next: Screen) {
+        val target = if (next is Screen.GameDetails && (com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(next.id) != null || com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(next.id) != null)) Screen.Play(next.id) else next
+        resumePuzzle = (target as? Screen.Play)?.id?.takeIf { com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(it) != null || com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(it) != null }
+        screen = target
+    }
     fun finishOnboarding() { store.onboardingDone = true; screen = Screen.Main() }
 
     IQLabsTheme(appColorTheme = appColorTheme) {
@@ -238,7 +247,36 @@ private fun IqLabApp() {
                 onBack = { go(Screen.Main(Tab.Games)) },
                 onPlay = { go(Screen.Play(current.id, sessions + 7)) },
             )
-            is Screen.Play -> PlayScreen(
+            is Screen.Play -> if(com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(current.id)!=null) {
+                com.indianservers.iqlabs.workshop.WorkshopScreen(
+                    kind=com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(current.id)!!,
+                    sound=sound,haptics=haptics,reducedMotion=reducedMotion,
+                    onSound={ sound=it;store.sound=it },onHaptics={ haptics=it;store.haptics=it },
+                    onExit={ go(Screen.Main(Tab.Games)) },
+                    onSolved={ solved ->
+                        val accuracy=solved.moves*100/(solved.moves+solved.mistakes).coerceAtLeast(1)
+                        store.saveScore(current.id,solved.score);store.xp+=20;store.addSession()
+                        store.addMetric(SessionMetric(current.id,LocalDate.now(),IqCatalog.game(current.id).level,IqCatalog.game(current.id).category,com.indianservers.iqlabs.workshop.WorkshopSeeds.tier(solved.puzzle.level)+1,solved.score,accuracy,((solved.seconds*1000)/solved.moves.coerceAtLeast(1)).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(),20,solved.stars))
+                        xp=store.xp;sessions=store.sessions();metrics=store.metrics()
+                    }
+                )
+            } else if (com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(current.id) != null) {
+                com.indianservers.iqlabs.puzzle.InfinitePuzzleScreen(
+                    kind = com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(current.id)!!,
+                    sound = sound, haptics = haptics, reducedMotion = reducedMotion,
+                    onSound = { sound = it; store.sound = it },
+                    onExit = { go(Screen.Main(Tab.Games)) },
+                    onSolved = { solved ->
+                        val accuracy = ((solved.moves * 100) / (solved.moves + solved.mistakes).coerceAtLeast(1))
+                        val score = solved.stars * 100
+                        store.saveScore(current.id, score)
+                        store.xp += 20
+                        store.addSession()
+                        store.addMetric(SessionMetric(current.id, LocalDate.now(), IqCatalog.game(current.id).level, IqCatalog.game(current.id).category, (if(solved.puzzle.kind==com.indianservers.iqlabs.puzzle.PuzzleKind.Arrows) com.indianservers.iqlabs.puzzle.ArrowLevelGenerator.tier(solved.puzzle.level) else com.indianservers.iqlabs.puzzle.InfiniteEngine.tier(solved.puzzle.level)) + 1, score, accuracy, ((solved.seconds * 1000) / solved.moves.coerceAtLeast(1)).coerceAtMost(Int.MAX_VALUE.toLong()).toInt(), 20, solved.stars))
+                        xp = store.xp; sessions = store.sessions(); metrics = store.metrics()
+                    },
+                )
+            } else PlayScreen(
                 game = IqCatalog.game(current.id),
                 seed = current.seed,
                 difficultyMode = difficultyMode,
@@ -469,7 +507,7 @@ private fun GameDetailsScreen(
 }
 
 @Composable
-private fun PlayScreen(
+internal fun PlayScreen(
     game: GameDefinition,
     seed: Int,
     difficultyMode: DifficultyMode,
@@ -498,6 +536,14 @@ private fun PlayScreen(
     var feedback by rememberSaveable { mutableStateOf<String?>(null) }
     var answerLocked by rememberSaveable { mutableStateOf(false) }
     var confirmExit by rememberSaveable { mutableStateOf(false) }
+    var lives by rememberSaveable { mutableIntStateOf(5) }
+    var hintText by rememberSaveable { mutableStateOf<String?>(null) }
+    var showLives by rememberSaveable { mutableStateOf(false) }
+    var exhausted by rememberSaveable { mutableStateOf(false) }
+    var attempt by rememberSaveable { mutableIntStateOf(0) }
+    val praise = rememberQuickPraise()
+    androidx.compose.runtime.LaunchedEffect(index, attempt, paused) { praise.resetWindow() }
+    val roundHints = remember { RoundHints() }
     val roundScope = rememberCoroutineScope()
 
     BackHandler(onBack = { if (started && index < questions.size) confirmExit = true else onExit() })
@@ -509,13 +555,15 @@ private fun PlayScreen(
                     Text(game.name, fontWeight = FontWeight.Black, fontSize = 18.sp, maxLines = 1)
                     Text("${game.level.title} · L${parameters.tier}", color = extras.muted, fontSize = 11.sp)
                 }
-                Text("${ScoreEngine.score(correct, incorrect, bestCombo, parameters.tier, 12)}", color = game.accent, fontWeight = FontWeight.Black, fontSize = 18.sp)
+                PlayAssistButtons(lives = lives, hintEnabled = started && !paused && !answerLocked && !exhausted,
+                    onLives = { showLives = true }, onHint = { praise.usedHint(); hintText = roundHints.nextMove() })
             }
             IqProgressBar((index + 1) / questions.size.toFloat(), game.accent, Modifier.fillMaxWidth())
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Round ${index + 1}/${questions.size} · Combo $combo", color = extras.muted, fontSize = 11.sp)
                 Text("Best ${bestScore ?: "—"}", color = extras.muted, fontSize = 11.sp)
             }
+            QuickPraiseBanner(praise)
             if (!started) {
                 SoftCard(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     Text("Session Brief", fontSize = 26.sp, fontWeight = FontWeight.Black)
@@ -534,6 +582,19 @@ private fun PlayScreen(
                         shape = RoundedCornerShape(18.dp),
                     ) { Text("Start Countdown", fontWeight = FontWeight.Bold) }
                 }
+            } else if (exhausted) {
+                Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
+                    SoftCard(modifier = Modifier.fillMaxWidth()) {
+                        Text("Out of lives", fontWeight = FontWeight.Black, fontSize = 26.sp)
+                        Text("Try this session again with five lives.")
+                        Button(onClick = {
+                            lives = 5; index = 0; correct = 0; incorrect = 0; consecutiveIncorrect = 0
+                            combo = 0; bestCombo = 0; totalResponseMs = 0; feedback = null
+                            answerLocked = false; exhausted = false; attempt++; roundStartedAt = System.currentTimeMillis()
+                        }) { Text("Retry session") }
+                        TextButton(onClick = onExit) { Text("Exit") }
+                    }
+                }
             } else if (paused) {
                 Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                     SoftCard(modifier = Modifier.fillMaxWidth()) {
@@ -550,11 +611,15 @@ private fun PlayScreen(
                 val question = questions[index]
                 val adaptiveHint = adaptiveHintFor(game, question, consecutiveIncorrect)
                 val answerHandler: (String) -> Unit = { answer ->
-                    if (!answerLocked) {
+                    if (!answerLocked && !exhausted && !paused) {
+                        hintText = null
                         answerLocked = true
                         val responseMs = (System.currentTimeMillis() - roundStartedAt).toInt().coerceAtLeast(0)
                         val nextResponseTotal = totalResponseMs + responseMs
                         val ok = answer == question.answer
+                        if (ok) praise.success(elapsedMs = responseMs.toLong())
+                        val nextLives = if (ok) lives else (lives - 1).coerceAtLeast(0)
+                        lives = nextLives
                         val nextCorrect = correct + if (ok) 1 else 0
                         val nextIncorrect = incorrect + if (ok) 0 else 1
                         val nextCombo = if (ok) combo + 1 else 0
@@ -568,10 +633,12 @@ private fun PlayScreen(
                         feedback = roundFeedback(game, ok, question.detail)
                         roundScope.launch {
                             delay(650)
-                            if (index == questions.lastIndex) {
+                            if (nextLives == 0) {
+                                exhausted = true
+                            } else if (index == questions.lastIndex) {
                                 val score = ScoreEngine.score(nextCorrect, nextIncorrect, nextBestCombo, parameters.tier, 12)
                                 val earnedXp = ScoreEngine.xp(nextCorrect, nextIncorrect, parameters.tier, game.xpReward)
-                                onComplete(GameResult(score, nextCorrect, nextIncorrect, earnedXp, nextBestCombo, false, averageResponseMs = nextResponseTotal / questions.size))
+                                onComplete(GameResult(score, nextCorrect, nextIncorrect, earnedXp, nextBestCombo, false, averageResponseMs = nextResponseTotal / (index + 1)))
                             } else {
                                 feedback = null
                                 index++
@@ -581,7 +648,14 @@ private fun PlayScreen(
                         }
                     }
                 }
-                PlayRound(game, question, feedback, adaptiveHint, answerHandler, Modifier.fillMaxWidth().weight(1f), sound = sound)
+                androidx.compose.runtime.key(attempt, index) {
+                    PlayRound(game, question, feedback, adaptiveHint, answerHandler, Modifier.fillMaxWidth().weight(1f), sound = sound, hints = roundHints, onProgress = { praise.success() }, onMistake = {
+                        if (!answerLocked && !exhausted && !paused && hintText == null) {
+                            lives = (lives - 1).coerceAtLeast(0); incorrect++; combo = 0
+                            if (lives == 0) exhausted = true
+                        }
+                    })
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 2.dp)) {
                     OutlinedButton(onClick = { paused = true }, modifier = Modifier.weight(1f).height(46.dp)) { Text("Pause", fontWeight = FontWeight.Bold) }
                     OutlinedButton(onClick = { onSound(!sound) }, modifier = Modifier.weight(1f).height(46.dp)) { Text(if (sound) "Sound on" else "Muted", fontWeight = FontWeight.Bold) }
@@ -589,6 +663,12 @@ private fun PlayScreen(
             }
         }
     }
+    if (showLives) AlertDialog(onDismissRequest = { showLives = false },
+        title = { Text("$lives / 5 lives") }, text = { Text("An incorrect answer costs one life. Correct answers and hints are free. Retry the session when your lives run out.") },
+        confirmButton = { TextButton(onClick = { showLives = false }) { Text("Continue") } })
+    if (hintText != null) AlertDialog(onDismissRequest = { hintText = null },
+        title = { Text("Next move") }, text = { Text(hintText.orEmpty()) },
+        confirmButton = { TextButton(onClick = { hintText = null }) { Text("Got it") } })
     if (confirmExit) {
         AlertDialog(
             onDismissRequest = { confirmExit = false },

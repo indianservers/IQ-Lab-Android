@@ -54,16 +54,15 @@ data class GameDefinition(
 )
 
 /**
- * Strict native mirror of IQ Lab-web. Android-only, generated, filler, and
- * placeholder games must never be added here.
+ * Preserves the native web catalogue and includes the two offline infinite puzzles.
  */
 object IqCatalog {
-    val games: List<GameDefinition> = WebLabCatalog.games
+    val games: List<GameDefinition> = WebLabCatalog.games + com.indianservers.iqlabs.puzzle.PuzzleCatalog.games + com.indianservers.iqlabs.workshop.WorkshopCatalog.games
     val playableIds: Set<String> = games.mapTo(linkedSetOf()) { it.id }
     val levels: List<LevelId> = LevelId.entries
 
     init {
-        check(games.size == 152) { "IQ Lab-web catalog must contain exactly 152 unique games." }
+        check(WebLabCatalog.games.size == 152) { "IQ Lab-web catalog must contain exactly 152 unique games." }
         check(playableIds.size == games.size) { "IQ Lab-web game ids must be unique." }
     }
 

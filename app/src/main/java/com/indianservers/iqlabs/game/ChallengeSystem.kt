@@ -132,7 +132,7 @@ object ChallengeSystem {
     }
 
     private fun pickGames(seed: Int, count: Int, category: Category?): List<GameDefinition> {
-        val candidates = IqCatalog.games.filter { it.status == ImplementationStatus.Playable && (category == null || it.category == category) }
+        val candidates = IqCatalog.games.filter { it.status == ImplementationStatus.Playable && com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(it.id) == null && com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(it.id) == null && (category == null || it.category == category) }
         return candidates.shuffled(Random(seed)).take(count)
     }
 }

@@ -34,19 +34,19 @@ class CatalogAndEngineTest {
 
     @Test
     fun catalogContainsOnlyTheUniqueWebGames() {
-        assertEquals(152, IqCatalog.games.size)
-        assertEquals(152, IqCatalog.games.map { it.id }.toSet().size)
-        assertEquals(setOf(36, 44, 34, 19), LevelId.entries.map { IqCatalog.levelGames(it).size }.toSet())
+        assertEquals(156, IqCatalog.games.size)
+        assertEquals(156, IqCatalog.games.map { it.id }.toSet().size)
+        assertEquals(setOf(40, 44, 34, 19), LevelId.entries.map { IqCatalog.levelGames(it).size }.toSet())
     }
 
     @Test
     fun websiteLevelCountsArePreservedAfterDuplicateIdsAreCollapsed() {
-        assertEquals(listOf(36, 44, 34, 19, 19), LevelId.entries.map { IqCatalog.levelGames(it).size })
+        assertEquals(listOf(40, 44, 34, 19, 19), LevelId.entries.map { IqCatalog.levelGames(it).size })
     }
 
     @Test
     fun everyCatalogGameHasANativeRoundGenerator() {
-        IqCatalog.games.forEach { game ->
+        IqCatalog.games.filter { com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(it.id) == null && com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(it.id) == null }.forEach { game ->
             val rounds = QuestionFactory.questionsFor(game, seed = game.id.hashCode(), count = 2, tier = game.difficulty)
             assertEquals("${game.id} round count", 2, rounds.size)
             rounds.forEach { round ->
@@ -58,13 +58,13 @@ class CatalogAndEngineTest {
 
     @Test
     fun progressionContainsNoLegacyGameIds() {
-        assertEquals(IqCatalog.playableIds, LevelBlueprint.games.mapTo(linkedSetOf()) { it.catalogId })
+        assertEquals(IqCatalog.playableIds.filter { com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(it) == null && com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(it) == null }.toSet(), LevelBlueprint.games.mapTo(linkedSetOf()) { it.catalogId })
         assertTrue(LevelBlueprint.mappedCatalogGamesArePlayable())
     }
 
     @Test
     fun everyGameExposesThreeNativeUxEnhancements() {
-        IqCatalog.games.forEach { game ->
+        IqCatalog.games.filter { com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(it.id) == null && com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(it.id) == null }.forEach { game ->
             val enhancements = WebNativePack.enhancementsFor(game)
             assertEquals("${game.id} enhancement count", 3, enhancements.size)
             assertEquals("${game.id} unique enhancements", 3, enhancements.distinct().size)
@@ -74,7 +74,7 @@ class CatalogAndEngineTest {
 
     @Test
     fun generatedRoundsHaveUniqueStateKeysEvenWhenPromptsRepeat() {
-        IqCatalog.games.forEach { game ->
+        IqCatalog.games.filter { com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(it.id) == null && com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(it.id) == null }.forEach { game ->
             val rounds = QuestionFactory.questionsFor(game, seed = 73, count = 6)
             assertEquals("${game.id} unique round state", rounds.size, rounds.map { it.roundKey }.toSet().size)
             assertTrue("${game.id} non-empty round state", rounds.all { it.roundKey.isNotBlank() })
@@ -95,7 +95,7 @@ class CatalogAndEngineTest {
 
     @Test
     fun everyNativeMechanicProducesSolvableWellFormedRounds() {
-        IqCatalog.games.forEach { game ->
+        IqCatalog.games.filter { com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(it.id) == null && com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(it.id) == null }.forEach { game ->
             val rounds = listOf(1, 5, 10, 15, 20).flatMap { tier ->
                 QuestionFactory.questionsFor(game, seed = game.id.hashCode() xor 404 xor tier, count = 4, tier = tier)
             }
@@ -184,7 +184,7 @@ class CatalogAndEngineTest {
 
     @Test
     fun answerChoicesAreNotPositionBiased() {
-        val positions = IqCatalog.games.flatMap { game ->
+        val positions = IqCatalog.games.filter { com.indianservers.iqlabs.puzzle.PuzzleCatalog.kind(it.id) == null && com.indianservers.iqlabs.workshop.WorkshopCatalog.kind(it.id) == null }.flatMap { game ->
             QuestionFactory.questionsFor(game, seed = game.id.hashCode() xor 919, count = 10)
                 .map { it.choices.indexOf(it.answer) }
         }
