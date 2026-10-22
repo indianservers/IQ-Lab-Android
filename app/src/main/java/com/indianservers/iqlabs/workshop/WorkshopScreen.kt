@@ -1,7 +1,7 @@
 package com.indianservers.iqlabs.workshop
 
 import com.indianservers.iqlabs.ui.components.rememberQuickPraise
-import com.indianservers.iqlabs.ui.components.QuickPraiseBanner
+import com.indianservers.iqlabs.ui.components.SpokenQuickPraise
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -259,12 +259,14 @@ fun WorkshopScreen(kind:WorkshopKind,sound:Boolean,haptics:Boolean,reducedMotion
                         Text("Level ${s.puzzle.level}",color=warmInk,fontSize=24.sp,fontWeight=FontWeight.Black)
                         Text("${WorkshopSeeds.tiers[WorkshopSeeds.tier(s.puzzle.level)]} · ${if(s.mode==PuzzleMode.Normal)"Regular" else s.mode.name}",fontSize=11.sp,color=warmInk.copy(alpha=.6f))
                     }
+                    Column(horizontalAlignment=Alignment.End) {
                     com.indianservers.iqlabs.ui.components.PlayAssistButtons(s.lives,
                         onLives={ message=if(s.mode==PuzzleMode.Relaxed)"Unlimited lives in Relaxed mode." else "${s.lives} / ${s.mode.lives} lives. Rotating is free; failed Challenge beam checks and blocked ring releases cost one life." },
                         onHint={ requestHint(2) },hintEnabled=playable,unlimited=s.mode==PuzzleMode.Relaxed)
-                    IconButton(onClick={ paused=true }) { Icon(Icons.Rounded.Pause,"Pause",tint=warmInk) }
+                    com.indianservers.iqlabs.ui.components.PlayUtilityButtons(sound,onSound,onPause={ paused=true },onSettings={ settings=true })
+                    }
                 }
-                QuickPraiseBanner(praise)
+                SpokenQuickPraise(praise, sound, active = !selection && !paused && !settings)
                 Box(Modifier.weight(1f).fillMaxWidth(),contentAlignment=Alignment.Center) {
                     if(kind==WorkshopKind.Laser) LaserBoard(s,Modifier.fillMaxSize(),highlight,laserPreview,motionId,motionGoal.toInt(),progress.value,playable,{ laserTurn(it) })
                     else RingsBoard(s,Modifier.fillMaxSize(),selected,highlight,ringPreview,if(releasing)motionId else null,progress.value,if(!releasing)motionId else null,motionGoal,progress.value,playable,{ selected=it;clearHints() },{ id,a->ringTurn(id,a) })
@@ -290,7 +292,6 @@ fun WorkshopScreen(kind:WorkshopKind,sound:Boolean,haptics:Boolean,reducedMotion
                     }
                     ToolButton("Restart",Icons.Rounded.Refresh,!busy,::retry)
                     ToolButton("Hint",Icons.Rounded.Lightbulb,playable) { hintMenu=true }
-                    ToolButton("Settings",Icons.Rounded.Settings) { settings=true }
                 }
                 if(s.complete) WorkshopCompletion(s,{
                     if(s.puzzle.level==Long.MAX_VALUE)load(s.puzzle.level,true) else load(WorkshopSeeds.next(s.puzzle.level))

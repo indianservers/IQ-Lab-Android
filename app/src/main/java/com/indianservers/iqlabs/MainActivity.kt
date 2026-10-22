@@ -76,7 +76,7 @@ import com.indianservers.iqlabs.ui.play.PlayRound
 import com.indianservers.iqlabs.ui.play.RoundHints
 import com.indianservers.iqlabs.ui.components.PlayAssistButtons
 import com.indianservers.iqlabs.ui.components.rememberQuickPraise
-import com.indianservers.iqlabs.ui.components.QuickPraiseBanner
+import com.indianservers.iqlabs.ui.components.SpokenQuickPraise
 import com.indianservers.iqlabs.ui.components.IqProgressBar
 import com.indianservers.iqlabs.ui.components.SoftCard
 import com.indianservers.iqlabs.ui.levelAccent
@@ -555,15 +555,18 @@ internal fun PlayScreen(
                     Text(game.name, fontWeight = FontWeight.Black, fontSize = 18.sp, maxLines = 1)
                     Text("${game.level.title} · L${parameters.tier}", color = extras.muted, fontSize = 11.sp)
                 }
+                Column(horizontalAlignment = Alignment.End) {
                 PlayAssistButtons(lives = lives, hintEnabled = started && !paused && !answerLocked && !exhausted,
                     onLives = { showLives = true }, onHint = { praise.usedHint(); hintText = roundHints.nextMove() })
+                com.indianservers.iqlabs.ui.components.PlayUtilityButtons(sound, onSound, onPause = { paused = true })
+                }
             }
             IqProgressBar((index + 1) / questions.size.toFloat(), game.accent, Modifier.fillMaxWidth())
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                 Text("Round ${index + 1}/${questions.size} · Combo $combo", color = extras.muted, fontSize = 11.sp)
                 Text("Best ${bestScore ?: "—"}", color = extras.muted, fontSize = 11.sp)
             }
-            QuickPraiseBanner(praise)
+            SpokenQuickPraise(praise, sound, active = !paused && !exhausted)
             if (!started) {
                 SoftCard(modifier = Modifier.fillMaxWidth().weight(1f)) {
                     Text("Session Brief", fontSize = 26.sp, fontWeight = FontWeight.Black)
@@ -656,10 +659,7 @@ internal fun PlayScreen(
                         }
                     })
                 }
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp), modifier = Modifier.fillMaxWidth().padding(horizontal = 3.dp, vertical = 2.dp)) {
-                    OutlinedButton(onClick = { paused = true }, modifier = Modifier.weight(1f).height(46.dp)) { Text("Pause", fontWeight = FontWeight.Bold) }
-                    OutlinedButton(onClick = { onSound(!sound) }, modifier = Modifier.weight(1f).height(46.dp)) { Text(if (sound) "Sound on" else "Muted", fontWeight = FontWeight.Bold) }
-                }
+
             }
         }
     }

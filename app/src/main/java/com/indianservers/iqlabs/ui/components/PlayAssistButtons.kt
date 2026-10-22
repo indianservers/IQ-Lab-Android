@@ -4,6 +4,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.Lightbulb
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.automirrored.rounded.VolumeUp
+import androidx.compose.material.icons.automirrored.rounded.VolumeOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -24,6 +28,23 @@ fun PlayAssistButtons(lives: Int, onLives: () -> Unit, onHint: () -> Unit,
         TextButton(onClick = onHint, enabled = hintEnabled, contentPadding = PaddingValues(horizontal = 6.dp),
             modifier = Modifier.heightIn(min = 48.dp).semantics { contentDescription = "Next move hint" }) {
             Icon(Icons.Rounded.Lightbulb, null, modifier = Modifier.size(18.dp))
+        }
+    }
+}
+
+@Composable
+fun PlayUtilityButtons(sound: Boolean, onSound: (Boolean) -> Unit,
+    onPause: (() -> Unit)? = null, onSettings: (() -> Unit)? = null) {
+    Row {
+        IconButton(onClick = { onSound(!sound) }) {
+            Icon(if (sound) Icons.AutoMirrored.Rounded.VolumeUp else Icons.AutoMirrored.Rounded.VolumeOff,
+                if (sound) "Mute sound" else "Unmute sound", modifier = Modifier.size(19.dp))
+        }
+        if (onPause != null) IconButton(onClick = onPause) {
+            Icon(Icons.Rounded.Pause, "Pause", modifier = Modifier.size(19.dp))
+        }
+        if (onSettings != null) IconButton(onClick = onSettings) {
+            Icon(Icons.Rounded.Settings, "Settings", modifier = Modifier.size(19.dp))
         }
     }
 }

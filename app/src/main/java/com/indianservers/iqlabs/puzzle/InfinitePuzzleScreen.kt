@@ -1,7 +1,7 @@
 package com.indianservers.iqlabs.puzzle
 
 import com.indianservers.iqlabs.ui.components.rememberQuickPraise
-import com.indianservers.iqlabs.ui.components.QuickPraiseBanner
+import com.indianservers.iqlabs.ui.components.SpokenQuickPraise
 import androidx.activity.compose.BackHandler
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
@@ -204,7 +204,7 @@ fun InfinitePuzzleScreen(kind: PuzzleKind, sound: Boolean, haptics: Boolean, red
                     Text("IQ LABS  /  INFINITE", fontSize = 10.sp, letterSpacing = 2.sp, color = Color(0xFF72839B))
                     Text(kind.title, fontSize = 25.sp, fontWeight = FontWeight.Black, color = ink)
                 }
-                TextButton(onClick = { settings = true }) { Text("⚙", fontSize = 24.sp) }
+                com.indianservers.iqlabs.ui.components.PlayUtilityButtons(sound, onSound, onSettings = { settings = true })
             }
             if (selection) {
                 Text(if (kind == PuzzleKind.Arrows) "A little foresight. A clear escape." else "Find your flow. Connect every colour.", color = ink)
@@ -245,7 +245,7 @@ fun InfinitePuzzleScreen(kind: PuzzleKind, sound: Boolean, haptics: Boolean, red
                     Text("$done / ${s.puzzle.paths.size} ${if (kind == PuzzleKind.Arrows) "cleared" else "connected"}", color = ink)
                     Text("${s.seconds / 60}:${(s.seconds % 60).toString().padStart(2, '0')}  ·  ${s.mode.name}", color = ink)
                 }
-                QuickPraiseBanner(praise)
+                SpokenQuickPraise(praise, sound, active = !selection && !settings)
                 Box(Modifier.weight(1f).fillMaxWidth().graphicsLayer(translationX = shake.value).background(Brush.verticalGradient(listOf(Color.White, Color(0xFFF3EFE5))), RoundedCornerShape(30.dp)), contentAlignment = Alignment.Center) {
                     if(kind==PuzzleKind.Arrows && s.puzzle.version>=2) {
                         ArrowBoard(s,Modifier.fillMaxSize(),highlight,animating,travel.value,!loading && !s.complete && s.lives>0 && animating==null,

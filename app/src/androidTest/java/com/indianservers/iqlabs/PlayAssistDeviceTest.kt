@@ -11,22 +11,72 @@ import org.junit.Test
 
 class PlayAssistDeviceTest {
     @get:Rule val compose = createComposeRule()
-    @Test fun quickPairShowsEncouragementBeforeTheRoundFinishes() {
+    @Test fun installedSpeechEngineSynthesizesAnAppreciation() {
+        val context = androidx.test.platform.app.InstrumentationRegistry.getInstrumentation().targetContext
+        val ready = java.util.concurrent.CountDownLatch(1)
+        val status = java.util.concurrent.atomic.AtomicInteger(-1)
+        val tts = android.speech.tts.TextToSpeech(context) { status.set(it); ready.countDown() }
+        val file = java.io.File(context.cacheDir, "appreciation-voice-test.wav")
+        try {
+            assertTrue("Speech engine did not initialize", ready.await(20, java.util.concurrent.TimeUnit.SECONDS))
+            assertEquals(android.speech.tts.TextToSpeech.SUCCESS, status.get())
+            assertTrue("English voice unavailable", tts.setLanguage(java.util.Locale.ENGLISH) >= android.speech.tts.TextToSpeech.LANG_AVAILABLE)
+            val done = java.util.concurrent.CountDownLatch(1)
+            val failed = java.util.concurrent.atomic.AtomicBoolean(false)
+            tts.setOnUtteranceProgressListener(object : android.speech.tts.UtteranceProgressListener() {
+                override fun onStart(id: String?) {}
+                override fun onDone(id: String?) { done.countDown() }
+                @Deprecated("Legacy callback") override fun onError(id: String?) { failed.set(true); done.countDown() }
+            })
+            assertEquals(android.speech.tts.TextToSpeech.SUCCESS, tts.synthesizeToFile(QuickSolvePraise.messages.first(), android.os.Bundle(), file, "praise-test"))
+            assertTrue("Speech synthesis timed out", done.await(25, java.util.concurrent.TimeUnit.SECONDS))
+            assertFalse(failed.get())
+            assertTrue("Speech output was empty", file.length() > 44)
+        } finally { tts.shutdown(); file.delete() }
+    }
+    @Test fun mutedPraiseIsConsumedWithoutSpeakingOrReplayingOnUnmute() {
+        val state = com.indianservers.iqlabs.ui.components.QuickPraiseState()
+        val sound = androidx.compose.runtime.mutableStateOf(false)
+        val spoken = mutableListOf<String>()
+        var stops = 0
+        val voice = object : com.indianservers.iqlabs.ui.components.PraiseVoice {
+            override fun speak(text: String) { spoken += text }
+            override fun stop() { stops++ }
+            override fun close() {}
+        }
+        compose.setContent { com.indianservers.iqlabs.ui.components.SpokenQuickPraise(state, sound.value, voice = voice) }
+        compose.runOnIdle { state.success(elapsedMs = 1000) }
+        compose.waitForIdle()
+        assertTrue(spoken.isEmpty())
+        assertTrue(stops > 0)
+        compose.runOnIdle { sound.value = true }
+        compose.waitForIdle()
+        assertTrue(spoken.isEmpty())
+    }
+    @Test fun quickPairSpeaksEncouragementBeforeTheRoundFinishes() {
         val game = IqCatalog.games.first()
         val question = Question("Find the pairs", emptyList(), "done", "Match both pairs.", PlayStyle.Match, listOf("A","A","B","B"), "praise-pairs")
         var completed = false
+        val spoken = mutableListOf<String>()
+        val voice = object : com.indianservers.iqlabs.ui.components.PraiseVoice {
+            override fun speak(text: String) { spoken += text }
+            override fun stop() {}
+            override fun close() {}
+        }
         compose.setContent {
             IQLabsTheme {
                 val praise = com.indianservers.iqlabs.ui.components.rememberQuickPraise()
                 androidx.compose.foundation.layout.Column {
-                    com.indianservers.iqlabs.ui.components.QuickPraiseBanner(praise)
+                    com.indianservers.iqlabs.ui.components.SpokenQuickPraise(praise, true, voice = voice)
                     com.indianservers.iqlabs.ui.play.PlayRound(game, question, null, null, { completed = true }, sound = false, onProgress = { praise.success() })
                 }
             }
         }
         compose.onAllNodesWithText("?")[0].performClick()
         compose.onAllNodesWithText("?")[0].performClick()
-        compose.onNodeWithText(QuickSolvePraise.messages.first()).assertExists()
+        compose.waitForIdle()
+        assertEquals(listOf(QuickSolvePraise.messages.first()), spoken)
+        compose.onNodeWithText(QuickSolvePraise.messages.first()).assertDoesNotExist()
         assertFalse(completed)
         compose.onAllNodesWithText("?").assertCountEquals(2)
     }
