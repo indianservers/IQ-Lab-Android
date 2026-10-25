@@ -210,7 +210,8 @@ fun ProgressScreen(xp: Int, streak: Int, sessions: Int, metrics: List<SessionMet
 }
 
 private fun progressForLevel(level: LevelId, xp: Int): Float {
-    val next = LevelId.entries.getOrNull(level.ordinal + 1)
+    if (level == LevelId.Adults) return 1f
+    val next = LevelId.entries.filter { it != LevelId.Adults }.getOrNull(level.ordinal + 1)
     return when {
         xp >= (next?.minXp ?: (level.minXp + 2000)) -> 1f
         xp <= level.minXp -> (xp / (level.minXp + 400f)).coerceIn(0.08f, .35f)

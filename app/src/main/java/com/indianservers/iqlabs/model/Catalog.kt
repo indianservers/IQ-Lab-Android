@@ -16,6 +16,7 @@ enum class LevelId(
     Thinker("Advanced", "Advanced", "Stronger working-memory, reasoning, attention, and processing-speed tasks.", Color(0xFF14C8FF), Color(0xFF075E8D), 1600),
     Mastermind("Expert", "Expert", "Hard multi-step logic, attention, memory, and speed tasks for advanced players.", Color(0xFFB35CFF), Color(0xFF60309C), 3200),
     Genius("Master", "Master", "Complex, high-load challenges built to be difficult and unforgiving.", Color(0xFFFF5D64), Color(0xFF9F2530), 5600),
+    Adults("Adults", "Adults", "Relax, plan and solve infinite puzzles at your own pace.", Color(0xFF248CE5), Color(0xFF164B78), 0),
 }
 
 /** Website categories. Math is retained only for saved-progress compatibility. */
@@ -57,9 +58,9 @@ data class GameDefinition(
  * Preserves the native web catalogue and includes the two offline infinite puzzles.
  */
 object IqCatalog {
-    val games: List<GameDefinition> = WebLabCatalog.games + com.indianservers.iqlabs.puzzle.PuzzleCatalog.games + com.indianservers.iqlabs.workshop.WorkshopCatalog.games
+    val games: List<GameDefinition> = com.indianservers.iqlabs.puzzle.PuzzleCatalog.games + WebLabCatalog.games + com.indianservers.iqlabs.workshop.WorkshopCatalog.games
     val playableIds: Set<String> = games.mapTo(linkedSetOf()) { it.id }
-    val levels: List<LevelId> = LevelId.entries
+    val levels: List<LevelId> = listOf(LevelId.Adults) + LevelId.entries.filter { it != LevelId.Adults }
 
     init {
         check(WebLabCatalog.games.size == 152) { "IQ Lab-web catalog must contain exactly 152 unique games." }

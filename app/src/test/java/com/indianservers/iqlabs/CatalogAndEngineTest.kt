@@ -36,12 +36,12 @@ class CatalogAndEngineTest {
     fun catalogContainsOnlyTheUniqueWebGames() {
         assertEquals(156, IqCatalog.games.size)
         assertEquals(156, IqCatalog.games.map { it.id }.toSet().size)
-        assertEquals(setOf(40, 44, 34, 19), LevelId.entries.map { IqCatalog.levelGames(it).size }.toSet())
+        assertEquals(setOf(38, 44, 34, 19, 2), LevelId.entries.map { IqCatalog.levelGames(it).size }.toSet())
     }
 
     @Test
     fun websiteLevelCountsArePreservedAfterDuplicateIdsAreCollapsed() {
-        assertEquals(listOf(40, 44, 34, 19, 19), LevelId.entries.map { IqCatalog.levelGames(it).size })
+        assertEquals(listOf(38, 44, 34, 19, 19, 2), LevelId.entries.map { IqCatalog.levelGames(it).size })
     }
 
     @Test

@@ -112,7 +112,7 @@ fun InfinitePuzzleScreen(kind: PuzzleKind, sound: Boolean, haptics: Boolean, red
         scope.launch {
             val old = withContext(Dispatchers.IO) { store.saved(kind, level) }
             val next = withContext(Dispatchers.Default) { runCatching {
-                if (old != null && !different && !(kind==PuzzleKind.Arrows && old.puzzle.version<2)) PuzzleSession(old.puzzle, mode) else store.fresh(kind, level, mode, if (different) InfiniteEngine.next(old?.puzzle?.variation ?: 0) else 0)
+                if (old != null && !different && !(kind==PuzzleKind.Arrows && old.puzzle.version<ArrowLevelGenerator.VERSION)) PuzzleSession(old.puzzle, mode) else store.fresh(kind, level, mode, if (different) InfiniteEngine.next(old?.puzzle?.variation ?: 0) else 0)
             }.getOrNull() }
             if (next == null) { loading = false; explain("A fresh puzzle could not be prepared. Please try again."); return@launch }
             update(next); history = emptyList(); highlight = null; preview = emptyList(); selection = false; loading = false
@@ -124,6 +124,12 @@ fun InfinitePuzzleScreen(kind: PuzzleKind, sound: Boolean, haptics: Boolean, red
         mode = session?.mode ?: PuzzleMode.Normal
         if(kind==PuzzleKind.Arrows && session?.puzzle?.version?.let { it<2 }==true && session?.complete==false) {
             val old=session!!
+            session=withContext(Dispatchers.Default) { store.fresh(kind,old.puzzle.level,old.mode) }
+            store.save(session!!)
+        }
+        // Preserve partly played boards. Untouched legacy level 3+ boards can
+        // adopt the new curriculum immediately; old canonical geometry remains archived.
+        session?.takeIf { kind==PuzzleKind.Arrows && it.puzzle.version<ArrowLevelGenerator.VERSION && it.puzzle.level>=3 && it.moves==0 && it.mistakes==0 }?.let { old->
             session=withContext(Dispatchers.Default) { store.fresh(kind,old.puzzle.level,old.mode) }
             store.save(session!!)
         }

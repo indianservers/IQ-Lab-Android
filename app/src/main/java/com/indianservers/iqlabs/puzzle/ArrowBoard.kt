@@ -32,7 +32,7 @@ fun ArrowBoard(s:PuzzleSession,modifier:Modifier,highlight:Int?,animating:Int?,t
     val puzzle=s.puzzle
     var camera by remember(puzzle) { mutableStateOf(if(s.cameraZoom>0) ArrowCamera(s.cameraX,s.cameraY,s.cameraZoom) else ArrowCamera.initial(puzzle.size,puzzle.level)) }
     var viewport by remember { mutableStateOf(IntSize.Zero) }
-    var minimap by remember { mutableStateOf(puzzle.size>80) }
+    var minimap by remember { mutableStateOf(puzzle.size>80 && puzzle.level>30) }
     val scope=rememberCoroutineScope()
     val current by rememberUpdatedState(s)
     val canTap by rememberUpdatedState(enabled)
@@ -67,7 +67,7 @@ fun ArrowBoard(s:PuzzleSession,modifier:Modifier,highlight:Int?,animating:Int?,t
         if(viewport.width>0) { camera=camera.zoomAt(factor,viewport.width/2f,viewport.height/2f,viewport.width.toFloat(),viewport.height.toFloat(),puzzle.size);persist() }
     }
     Box(modifier.clipToBounds().background(Color(0xFFF8F1E3))) {
-        Canvas(Modifier.fillMaxSize().onSizeChanged { viewport=it }.semantics { contentDescription="Puzzle board" }.pointerInput(puzzle) {
+        Canvas(Modifier.fillMaxSize().padding(bottom=48.dp).onSizeChanged { viewport=it }.semantics { contentDescription="Puzzle board" }.pointerInput(puzzle) {
             var pending:Job?=null
             var lastTap=0L
             var lastTapPoint=Offset.Zero

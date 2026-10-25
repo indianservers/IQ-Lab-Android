@@ -10,8 +10,8 @@ object PuzzleCatalog {
         GameDefinition(
             id = if (arrows) "arrow-escape" else "connect-colours", name = kind.title,
             description = if (arrows) "Tap arrows in the right order. Clear the entire board!" else "Connect matching dots. Never let the lines touch!",
-            level = LevelId.Explorer, category = if (arrows) Category.Logic else Category.Spatial,
-            tags = listOf("Infinite", "Offline", "Puzzle"), difficulty = 1, durationMinutes = 3, minAge = 5,
+            level = LevelId.Adults, category = if (arrows) Category.Logic else Category.Spatial,
+            tags = listOf("Infinite", "Offline", "Puzzle"), difficulty = 1, durationMinutes = 3, minAge = 18,
             icon = if (arrows) "↗" else "●", accent = Color(if (arrows) 0xFF17AF89 else 0xFF248CE5),
             instructions = if (arrows) "Tap arrows with a clear forward exit. Clear blocking arrows first." else "Drag from one numbered dot to its matching partner. Lines cannot touch or cross. Redraw by dragging from an endpoint.",
             scoringModel = "Earn up to three stars through accurate play and thoughtful use of hints.", xpReward = 0,

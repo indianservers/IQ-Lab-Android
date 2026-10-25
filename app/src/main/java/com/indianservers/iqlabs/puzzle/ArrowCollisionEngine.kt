@@ -38,6 +38,10 @@ class ArrowCollisionEngine(val paths: List<PuzzlePath>, val size: Int) {
                     if(e.id!=a.id && (if(positive) e.coordinate>=trailing else e.coordinate<=trailing)) blocked+=e.id
                 }
             }
+            // A self-intercepting forward ray is an invalid escape shape, even
+            // though a purely rigid translation could move the body as one piece.
+            // Keep a self-edge so no solver or hint can call that arrow removable.
+            if(selfBlocked(a))blocked+=a.id
             a.id to blocked.toSet()
         }
     }
@@ -63,6 +67,13 @@ class ArrowCollisionEngine(val paths: List<PuzzlePath>, val size: Int) {
         return depths.values.maxOrNull() ?: 0
     }
     companion object {
+        fun selfBlocked(path: PuzzlePath):Boolean {
+            val head=path.head;val d=path.direction
+            return path.cells.any { c->
+                val dx=c.x-head.x;val dy=c.y-head.y
+                dx*d.x+dy*d.y>0 && dx*d.y-dy*d.x==0
+            }
+        }
         fun folds(path: PuzzlePath) = path.cells.zipWithNext().map { (a,b)-> b-a }.zipWithNext().count { (a,b)->a!=b }
         /** Brute-force oracle used by tests, separate from the indexed extrema. */
         fun sweptBlocked(a: PuzzlePath,b: PuzzlePath): Boolean = a.cells.any { c -> b.cells.any { d ->

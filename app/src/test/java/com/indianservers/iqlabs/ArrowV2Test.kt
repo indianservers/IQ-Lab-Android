@@ -4,9 +4,33 @@ import com.indianservers.iqlabs.puzzle.*
 import org.junit.Assert.*
 import org.junit.Test
 import kotlin.math.abs
+import kotlin.math.ceil
 
 class ArrowV2Test {
     private fun puzzle(paths:List<List<Cell>>) = InfinitePuzzle(PuzzleKind.Arrows,4,0,2,0,12,paths.mapIndexed { id,c -> PuzzlePath(id,c) },emptyList())
+    @Test fun inwardCoilIsRejectedInEveryDirectionAndSelfEdgesBlockTheSolver() {
+        val controls=listOf(Cell(0,0),Cell(4,0),Cell(4,4),Cell(0,4),Cell(0,1),Cell(2,1))
+        val cells=mutableListOf(controls.first())
+        controls.zipWithNext().forEach { (a,b)->
+            val d=Cell((b.x-a.x).coerceIn(-1,1),(b.y-a.y).coerceIn(-1,1));var c=a
+            while(c!=b) {c+=d;cells+=c}
+        }
+        repeat(4) { rotation->
+            val rotated=cells.map { c->when(rotation) {1->Cell(6-c.y,c.x);2->Cell(6-c.x,6-c.y);3->Cell(c.y,6-c.x);else->c} }
+            val a=PuzzlePath(0,rotated)
+            val p=InfinitePuzzle(PuzzleKind.Arrows,3,0,4,0,8,listOf(a),emptyList())
+            assertTrue(ArrowCollisionEngine.selfBlocked(a))
+            assertEquals(setOf(0),p.arrowGeometry.blockers[0])
+            assertTrue(p.arrowGeometry.removable(setOf(0)).isEmpty())
+            assertNull(p.arrowGeometry.solve())
+            assertFalse(InfiniteEngine.validate(p))
+        }
+    }
+    @Test fun mutuallyFacingArrowsCannotPassValidation() {
+        val p=puzzle(listOf(listOf(Cell(1,1),Cell(2,1)),listOf(Cell(5,1),Cell(4,1))))
+        assertNull(p.arrowGeometry.solve())
+        assertFalse(InfiniteEngine.validate(p))
+    }
     @Test fun rigidBodyIsBlockedEvenWhenTheHeadRayIsClear() {
         val p=puzzle(listOf(
             listOf(Cell(1,1),Cell(1,2),Cell(2,2),Cell(2,1),Cell(3,1)),
@@ -30,16 +54,25 @@ class ArrowV2Test {
             }
         }
     }
-    @Test fun gentleThirtyLevelCurriculumHasRealDependenciesAndFoldedPaths() {
+    @Test fun intricateCurriculumStartsAtThreeAndIncreasesEachLevel() {
         (1L..30L).forEach { level ->
             repeat(10) { seed ->
                 val p=ArrowLevelGenerator.generate(level,seed.toLong())
-                assertTrue(p.paths.size<=33)
-                if(level>=4) assertTrue(p.paths.size>=8)
-                assertTrue(p.paths.all { ArrowCollisionEngine.folds(it) in 2..5 })
-                assertTrue(p.arrowGeometry.depth<=4)
-                if(level>3) assertTrue(p.arrowGeometry.removable(p.paths.map { it.id }.toSet()).size<p.paths.size)
+                val profile=ArrowLevelGenerator.profile(level)
+                assertEquals(if(level<=2)3+level.toInt() else level.toInt()+9,p.paths.size)
+                assertTrue(p.paths.all { ArrowCollisionEngine.folds(it) in profile.minFolds..profile.maxFolds })
+                assertEquals(profile.count*(profile.minFolds+profile.maxFolds)/2,p.paths.sumOf { ArrowCollisionEngine.folds(it) })
+                assertTrue(p.paths.all { it.cells.distinct().size==it.cells.size })
+                if(level>=3) assertTrue(p.arrowGeometry.removable(p.paths.map { it.id }.toSet()).size<p.paths.size)
             }
+        }
+        val levelThree=ArrowLevelGenerator.generate(3,18)
+        assertEquals(12,levelThree.paths.size)
+        assertTrue(levelThree.paths.any { a->val d=a.cells.zipWithNext().map { (u,v)->v-u }.toSet();d.containsAll(listOf(Cell(1,0),Cell(-1,0),Cell(0,1),Cell(0,-1))) })
+        (3L..300L).zipWithNext().forEach { (a,b)->
+            val x=ArrowLevelGenerator.profile(a);val y=ArrowLevelGenerator.profile(b)
+            assertTrue(y.count>x.count)
+            assertTrue(y.count*(y.minFolds+y.maxFolds)>x.count*(x.minFolds+x.maxFolds))
         }
         assertTrue(ArrowLevelGenerator.generate(1000,18).paths.any { ArrowCollisionEngine.folds(it)==12 })
     }
@@ -52,12 +85,43 @@ class ArrowV2Test {
             }
         }
     }
+    @Test fun levelSevenNestsArrowsWithFewOpeningsAndAnInsideOutOrder() {
+        listOf(7L,14,30,100,300,1000).forEach { level->
+            repeat(4) { seed->
+                val p=ArrowLevelGenerator.generate(level,seed.toLong())
+                data class Bounds(val left:Int,val top:Int,val right:Int,val bottom:Int)
+                val boxes=p.paths.associate { a->a.id to Bounds(a.cells.minOf { it.x },a.cells.minOf { it.y },a.cells.maxOf { it.x },a.cells.maxOf { it.y }) }
+                val order=p.solution.withIndex().associate { it.value to it.index }
+                var nested=0
+                p.paths.forEach { child->
+                    val c=boxes.getValue(child.id)
+                    val wrappers=p.paths.filter { parent->
+                        val b=boxes.getValue(parent.id)
+                        parent.id!=child.id && b.left<c.left && b.top<c.top && b.right>c.right && b.bottom>c.bottom
+                    }
+                    if(wrappers.isNotEmpty())nested++
+                    wrappers.forEach { parent->
+                        assertTrue(p.arrowGeometry.blockers.getValue(parent.id).contains(child.id))
+                        assertFalse(p.arrowGeometry.blockers.getValue(child.id).contains(parent.id))
+                        assertTrue(order.getValue(child.id)<order.getValue(parent.id))
+                    }
+                }
+                assertTrue(nested>=p.paths.size*2/3)
+                assertTrue(p.arrowGeometry.removable(p.paths.map { it.id }.toSet()).size<=ceil(p.paths.size/4.0).toInt())
+                assertTrue(p.arrowGeometry.depth>=4)
+                assertTrue(p.paths.none(ArrowCollisionEngine::selfBlocked))
+            }
+        }
+    }
     @Test fun thousandSeedsAcrossTiersNeverHaveDeadlocks() {
         val levels=listOf(1L,3,4,10,20,30,31,60,100,200,500,1000,5000,Long.MAX_VALUE)
         repeat(1000) { seed ->
             val p=ArrowLevelGenerator.generate(levels[seed%levels.size],seed.toLong())
             assertTrue(InfiniteEngine.validate(p))
             assertTrue(p.paths.all { ArrowCollisionEngine.folds(it) in 2..12 })
+            // Independent support-plane oracle, stronger than a single head ray:
+            // no part of the body may project in front of its own head.
+            p.paths.forEach { a->assertTrue(a.cells.all { c->(c.x-a.head.x)*a.direction.x+(c.y-a.head.y)*a.direction.y<=0 }) }
             val alive=p.paths.map { it.id }.toMutableSet()
             // Any valid removal can only delete blockers; it cannot introduce a cycle.
             p.solution.forEach { id -> assertTrue(p.arrowGeometry.blocking(id,alive).isEmpty());alive.remove(id) }
@@ -80,7 +144,7 @@ class ArrowV2Test {
         assertEquals(.25f,ArrowCamera.fit(250).zoom,0f)
     }
     @Test fun benchmarkRequestedBoardSizes() {
-        listOf(47L to 50,97L to 100,272L to 250,700L to 500,1000L to 650).forEach { (level,count) ->
+        listOf(41L to 50,91L to 100,241L to 250,491L to 500,641L to 650,1000L to 750).forEach { (level,count) ->
             val start=System.nanoTime()
             val p=ArrowLevelGenerator.generate(level,178)
             assertEquals(count,p.paths.size)

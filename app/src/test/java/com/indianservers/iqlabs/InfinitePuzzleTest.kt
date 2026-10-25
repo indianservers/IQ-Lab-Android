@@ -16,6 +16,7 @@ class InfinitePuzzleTest {
                 assertTrue("Duplicate $kind $sample", signatures.add(p.signature))
                 if (sample % 100 == 0) assertEquals(p, InfiniteEngine.generate(kind, level, p.variation))
                 if (kind == PuzzleKind.Arrows) {
+                    p.paths.forEach { a->assertTrue("Self-blocked arrow at $level/${p.variation}/${a.id}",a.cells.all { c->(c.x-a.head.x)*a.direction.x+(c.y-a.head.y)*a.direction.y<=0 }) }
                     val remaining = p.paths.map { it.id }.toMutableSet()
                     p.solution.forEach { id -> assertTrue(id in InfiniteEngine.removable(p, remaining)); remaining.remove(id) }
                     assertTrue(remaining.isEmpty())

@@ -33,6 +33,6 @@ data class ArrowCamera(val x:Float,val y:Float,val zoom:Float) {
     }
     companion object {
         fun fit(board:Int)=ArrowCamera((board+1)/2f,(board+1)/2f,.25f)
-        fun initial(board:Int,level:Long)=fit(board).copy(zoom=if(level<=3).25f else ((board+1)/80f).coerceIn(.25f,5f))
+        fun initial(board:Int,level:Long)=fit(board).copy(zoom=if(level<=30).25f else ((board+1)/80f).coerceIn(.25f,5f))
     }
 }

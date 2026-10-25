@@ -114,7 +114,7 @@ fun CatalogueScreen(
             }
             item(span = { GridItemSpan(maxLineSpan) }) {
                 Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    (listOf("All") + LevelId.entries.map { it.title }).forEach { chip ->
+                    (listOf("All") + IqCatalog.levels.map { it.title }).forEach { chip ->
                         val selected = levelName == chip
                         Text(
                             chip,

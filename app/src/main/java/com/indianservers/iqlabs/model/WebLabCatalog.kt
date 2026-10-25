@@ -183,6 +183,7 @@ internal object WebLabCatalog {
             LevelId.Thinker -> "advanced"
             LevelId.Mastermind -> "expert"
             LevelId.Genius -> "master"
+            LevelId.Adults -> "adults"
         }).distinct().take(6)
         return GameDefinition(
             id = id,

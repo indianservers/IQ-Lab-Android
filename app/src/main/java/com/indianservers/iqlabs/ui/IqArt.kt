@@ -54,6 +54,7 @@ fun levelPastel(level: LevelId): Color = when (level) {
     LevelId.Thinker -> Color(0xFFDCEFFF)
     LevelId.Mastermind -> IqSoftLavender
     LevelId.Genius -> IqSoftPink
+    LevelId.Adults -> Color(0xFFDCEFFF)
 }
 
 fun levelAccent(level: LevelId): Color = when (level) {
@@ -62,6 +63,7 @@ fun levelAccent(level: LevelId): Color = when (level) {
     LevelId.Thinker -> IqSky
     LevelId.Mastermind -> IqPurple
     LevelId.Genius -> IqPink
+    LevelId.Adults -> IqSky
 }
 
 fun levelIcon(level: LevelId): ImageVector = when (level) {
@@ -70,6 +72,7 @@ fun levelIcon(level: LevelId): ImageVector = when (level) {
     LevelId.Thinker -> Icons.Rounded.Psychology
     LevelId.Mastermind -> Icons.Rounded.AutoAwesome
     LevelId.Genius -> Icons.Rounded.Star
+    LevelId.Adults -> Icons.Rounded.Psychology
 }
 
 fun categoryPastel(category: Category): Color = when (category) {
@@ -82,18 +85,20 @@ fun categoryPastel(category: Category): Color = when (category) {
     Category.Speed -> IqSoftYellow
 }
 
-fun rankForXp(xp: Int): LevelId = LevelId.entries.lastOrNull { xp >= it.minXp } ?: LevelId.Explorer
+fun rankForXp(xp: Int): LevelId = LevelId.entries.lastOrNull { it != LevelId.Adults && xp >= it.minXp } ?: LevelId.Explorer
 
 fun displayLevelNumber(xp: Int): Int = (xp / 60).coerceAtLeast(1)
 
 fun progressToNextRank(xp: Int): Float {
     val current = rankForXp(xp)
-    val next = LevelId.entries.getOrNull(current.ordinal + 1) ?: return 1f
+    val next = LevelId.entries.filter { it != LevelId.Adults }.getOrNull(current.ordinal + 1) ?: return 1f
     val span = (next.minXp - current.minXp).coerceAtLeast(1)
     return ((xp - current.minXp).toFloat() / span).coerceIn(0f, 1f)
 }
 
 val featuredGameIds = listOf(
+    "arrow-escape",
+    "connect-colours",
     "kids-picture-pairs",
     "kids-light-patterns",
     "kids-shape-detective",

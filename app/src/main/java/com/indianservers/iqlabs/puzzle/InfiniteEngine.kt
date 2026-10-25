@@ -52,7 +52,7 @@ object InfiniteEngine {
         return result
     }
     fun removable(puzzle: InfinitePuzzle, remaining: Set<Int>): List<Int> = if(puzzle.kind==PuzzleKind.Arrows && puzzle.version>=2) puzzle.arrowGeometry.removable(remaining) else puzzle.paths.filter { a ->
-        a.id in remaining && puzzle.paths.none { b -> b.id != a.id && b.id in remaining && escape(a, puzzle.size).any { it in b.cells } }
+        a.id in remaining && (puzzle.kind!=PuzzleKind.Arrows || !ArrowCollisionEngine.selfBlocked(a)) && puzzle.paths.none { b -> b.id != a.id && b.id in remaining && escape(a, puzzle.size).any { it in b.cells } }
     }.map { it.id }
     fun solveArrows(puzzle: InfinitePuzzle): List<Int>? {
         if(puzzle.version>=2) return puzzle.arrowGeometry.solve()
@@ -136,7 +136,7 @@ object InfiniteEngine {
         val all = puzzle.paths.flatMap { it.cells }
         if (all.distinct().size != all.size || all.any { !inside(it, puzzle.size) }) return false
         if (puzzle.paths.any { it.cells.size < 2 || it.cells.zipWithNext().any { (a,b) -> !a.adjacent(b) } }) return false
-        return if (puzzle.kind == PuzzleKind.Arrows) solveArrows(puzzle) != null else {
+        return if (puzzle.kind == PuzzleKind.Arrows) puzzle.paths.none(ArrowCollisionEngine::selfBlocked) && solveArrows(puzzle) != null else {
             val routes = puzzle.paths.associate { it.id to it.cells }
             routes.all { (id, route) -> validRoute(puzzle, id, route, routes, true) }
         }

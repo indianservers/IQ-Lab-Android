@@ -27,11 +27,15 @@ class PuzzleStore(context: Context, namespace: String = "iq_infinite_puzzles") {
     }
     fun highest(kind: PuzzleKind) = prefs.getLong("highest_$kind", 1).coerceAtLeast(1)
     fun bestStars(kind: PuzzleKind, level: Long) = prefs.getInt("best_${kind}_$level", 0)
-    fun active(kind: PuzzleKind): PuzzleSession? = (if(kind==PuzzleKind.Arrows) prefs.getString("v2_active_$kind",null) else null)?.let { runCatching { decode(JSONObject(it)) }.getOrNull() } ?: prefs.getString("active_$kind", null)?.let { runCatching { decode(JSONObject(it)) }.getOrNull() }
-    fun saved(kind: PuzzleKind, level: Long): PuzzleSession? = (if(kind==PuzzleKind.Arrows) prefs.getString("v2_level_${kind}_$level",null) else null)?.let { runCatching { decode(JSONObject(it)) }.getOrNull() } ?: prefs.getString("level_${kind}_$level", null)?.let { runCatching { decode(JSONObject(it)) }.getOrNull() }
+    private fun readStored(kind: PuzzleKind, suffix: String): PuzzleSession? {
+        val prefixes=if(kind==PuzzleKind.Arrows)listOf("v5_","v4_","v3_","v2_","") else listOf("")
+        return prefixes.firstNotNullOfOrNull { prefix->prefs.getString("$prefix$suffix",null)?.let { runCatching { decode(JSONObject(it)) }.getOrNull() } }
+    }
+    fun active(kind: PuzzleKind): PuzzleSession? = readStored(kind,"active_$kind")
+    fun saved(kind: PuzzleKind, level: Long): PuzzleSession? = readStored(kind,"level_${kind}_$level")
     fun save(session: PuzzleSession) {
         val json = encode(session).toString()
-        val prefix=if(session.puzzle.kind==PuzzleKind.Arrows && session.puzzle.version>=2) "v2_" else ""
+        val prefix=if(session.puzzle.kind!=PuzzleKind.Arrows) "" else when {session.puzzle.version>=5->"v5_";session.puzzle.version>=4->"v4_";session.puzzle.version>=3->"v3_";session.puzzle.version>=2->"v2_";else->""}
         val key = "${prefix}level_${session.puzzle.kind}_${session.puzzle.level}"
         val edit = prefs.edit().putString("${prefix}active_${session.puzzle.kind}", json)
         val identityKey = "identity_$key"
@@ -86,7 +90,14 @@ class PuzzleStore(context: Context, namespace: String = "iq_infinite_puzzles") {
         val paths = (0 until a.length()).map { a.getJSONObject(it).let { p -> PuzzlePath(p.getInt("id"), points(p.getJSONArray("cells"))) } }
         val solution = o.getJSONArray("solution").let { arr -> (0 until arr.length()).map { arr.getInt(it) } }
         val p = InfinitePuzzle(PuzzleKind.valueOf(o.getString("kind")), o.getLong("level"), o.getLong("variation"), o.getInt("version"), o.getLong("seed"), o.getInt("size"), paths, solution)
-        require(InfiniteEngine.validate(p))
+        val valid=InfiniteEngine.validate(p)
+        if(!valid && p.kind==PuzzleKind.Arrows && p.version<ArrowLevelGenerator.VERSION) {
+            // Archive the broken geometry in its original namespace; regenerate
+            // this attempt safely, with full lives. Unlocks/stars/rewards keep
+            // their existing keys, and no invalid old board reaches gameplay.
+            return PuzzleSession(ArrowLevelGenerator.generate(p.level,p.variation),PuzzleMode.valueOf(o.getString("mode")))
+        }
+        require(valid)
         val r = o.getJSONObject("routes")
         val routes = r.keys().asSequence().associate { it.toInt() to points(r.getJSONArray(it)) }
         require(routes.all { (id, route) -> InfiniteEngine.validRoute(p, id, route, routes, true) })
