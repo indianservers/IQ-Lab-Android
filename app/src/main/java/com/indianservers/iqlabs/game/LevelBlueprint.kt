@@ -48,7 +48,7 @@ object LevelBlueprint {
     }
 
     val stages: List<BlueprintStage> = games.flatMap { game ->
-        stageNames.mapIndexed { index, name ->
+        (if (ReadingGym.contains(game.catalogId)) List(100) { "Reading ${it + 1}" } else stageNames).mapIndexed { index, name ->
             val level = index + 1
             BlueprintStage(
                 workbookId = game.workbookId,
@@ -56,7 +56,7 @@ object LevelBlueprint {
                 stage = name,
                 designIntent = "Increase the native ${game.gameName} challenge without changing its core rule.",
                 exactDesign = "Level $level: tune ${game.difficultyAxes[index % game.difficultyAxes.size]} for ${game.gameName}.",
-                sessionShape = "Six native rounds with immediate feedback.",
+                sessionShape = if (ReadingGym.contains(game.catalogId)) "Ten dynamic reading practice questions." else "Six native rounds with immediate feedback.",
                 hints = if (level < 4) "One replay or contextual hint." else "No automatic hints.",
                 unlockRule = if (level == 1) "Available with the game." else "Complete level ${level - 1}.",
                 masteryTarget = if (level < 10) "80% accuracy" else "90% accuracy",
@@ -69,7 +69,7 @@ object LevelBlueprint {
         games.firstOrNull { it.catalogId == catalogId }?.let { game -> stages.filter { it.workbookId == game.workbookId } }.orEmpty()
 
     fun gameForCatalogId(catalogId: String): BlueprintGame? = games.firstOrNull { it.catalogId == catalogId }
-    fun maxLevelFor(catalogId: String): Int = if (gameForCatalogId(catalogId) == null) STANDARD_MAX_LEVEL else MAX_LEVEL
+    fun maxLevelFor(catalogId: String): Int = if (ReadingGym.contains(catalogId)) 100 else if (gameForCatalogId(catalogId) == null) STANDARD_MAX_LEVEL else MAX_LEVEL
     fun stageFor(catalogId: String, level: Int): BlueprintStage? =
         stagesForCatalogGame(catalogId).firstOrNull { it.level == level.coerceIn(1, maxLevelFor(catalogId)) }
 

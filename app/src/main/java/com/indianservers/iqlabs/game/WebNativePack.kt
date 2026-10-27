@@ -63,7 +63,7 @@ internal object WebNativePack {
         }
     }
 
-    fun enhancementsFor(game: GameDefinition): List<String> = when (familyFor(game.id)) {
+    fun enhancementsFor(game: GameDefinition): List<String> = if (ReadingGym.contains(game.id)) listOf("Follow the displayed reading rule", "Choose from 100 progressive levels", "Track accuracy, recall and response time") else when (familyFor(game.id)) {
         Family.MemoryCards -> listOf("Flip animated cards", "Track moves and mistakes", "Clear adaptive board sizes")
         Family.NumberSpan -> listOf("Watch paced digits", "Recall forward or backward", "Grow your memory span")
         Family.PatternGrid -> listOf("Watch sequential tile glow", "Rebuild an adaptive grid", "Track selected-cell accuracy")

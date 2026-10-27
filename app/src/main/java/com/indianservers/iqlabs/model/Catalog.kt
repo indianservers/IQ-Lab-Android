@@ -58,7 +58,7 @@ data class GameDefinition(
  * Preserves the native web catalogue and includes the two offline infinite puzzles.
  */
 object IqCatalog {
-    val games: List<GameDefinition> = com.indianservers.iqlabs.puzzle.PuzzleCatalog.games + WebLabCatalog.games + com.indianservers.iqlabs.workshop.WorkshopCatalog.games
+    val games: List<GameDefinition> = com.indianservers.iqlabs.puzzle.PuzzleCatalog.games + com.indianservers.iqlabs.game.ReadingGym.games + WebLabCatalog.games + com.indianservers.iqlabs.workshop.WorkshopCatalog.games
     val playableIds: Set<String> = games.mapTo(linkedSetOf()) { it.id }
     val levels: List<LevelId> = listOf(LevelId.Adults) + LevelId.entries.filter { it != LevelId.Adults }
 

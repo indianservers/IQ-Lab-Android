@@ -213,3 +213,13 @@ An enclosing frame is blocked by its contents. All contents have a collision-fre
 Boards open fitted through level 30, with the mini-map initially hidden so it cannot obscure the puzzle. The drawing canvas reserves space for view controls. Pinch, pan, fit, undo and solver hints remain available. New boards use a v5 namespace; older canonical boards and existing unlocks/stars are preserved.
 
 Version 5 verification: all 46 JVM tests passed, including 10,000 Arrow Escape samples, 1,000 additional seeds, independent containment/sweep checks and inside-out ordering checks. A separate 240-board random-order audit completed 39,600 legal removals without self-blocks or deadlocks. Debug APK, instrumentation APK and lint succeeded (zero errors, 63 warnings and two hints). The new nested touch test compiles but was not run because no device is connected. Logs: `app/build/verification/arrow-nesting-final.log` and `arrow-nesting-random-audit.log`. The generated geometry preview `arrow-level7-preview.png` is not an app screenshot.
+
+### Reading Brain Gym
+
+Reading now includes 15 additional exercises covering reversed words, missing vowels, scrambled middles, mirrored text, alternating case, missing letters, peripheral attention, flash recall, number-letter codes, reverse sentence order, hidden words, semantic interference, dual-task recall, contradictions and combined transformations.
+
+Each has 100 selectable levels and ten dynamically generated questions per session. The game detail slider saves the chosen level; completing a session with at least 80% accuracy advances it. Longer passages, greater letter removal, larger recall sequences, shorter flashes and tighter round deadlines increase difficulty. Relaxed mode extends exposure and answer time. Mirroring uses an actual horizontal graphics transform. Dual-task recall hides the sequence before showing the passage and hides the passage before answers.
+
+Existing local session metrics record accuracy, response time and selected level for the progress dashboard. Comprehension and memory recall contribute to exercise accuracy; they are not separately calibrated measures or validated IQ scores. Offline generation varies a bounded vocabulary and sentence templates, rather than producing arbitrary natural-language stories.
+
+Reading verification (28 October 2026): debug APK assembly and lint passed (zero errors, 65 warnings). All 21 selected catalogue, Reading Gym and quick-praise tests passed, including 15,000 Reading Gym questions across 1,500 game/level combinations. The unrelated full puzzle audit was stopped while running; no device UI verification was performed. Logs are in `app/build/verification/reading-*.log`.

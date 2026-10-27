@@ -291,7 +291,11 @@ private fun IqLabApp() {
                     store.xp += saved.xp
                     store.streak = maxOf(1, store.streak)
                     store.addSession()
-                    store.addMetric(SessionMetric(current.id, LocalDate.now(), IqCatalog.game(current.id).level, IqCatalog.game(current.id).category, IqCatalog.game(current.id).difficulty, saved.score, saved.accuracy, saved.averageResponseMs, saved.xp, saved.stars))
+                    store.addMetric(SessionMetric(current.id, LocalDate.now(), IqCatalog.game(current.id).level, IqCatalog.game(current.id).category, (if (com.indianservers.iqlabs.game.ReadingGym.contains(current.id)) context.getSharedPreferences("reading_gym", android.content.Context.MODE_PRIVATE).getInt(current.id, 1) else IqCatalog.game(current.id).difficulty), saved.score, saved.accuracy, saved.averageResponseMs, saved.xp, saved.stars))
+                    if (com.indianservers.iqlabs.game.ReadingGym.contains(current.id) && saved.accuracy >= 80) {
+                        val prefs = context.getSharedPreferences("reading_gym", android.content.Context.MODE_PRIVATE)
+                        prefs.edit().putInt(current.id, (prefs.getInt(current.id, 1) + 1).coerceAtMost(100)).apply()
+                    }
                     xp = store.xp
                     streak = store.streak
                     sessions = store.sessions()
@@ -408,8 +412,12 @@ private fun GameDetailsScreen(
     onPlay: () -> Unit,
 ) {
     val extras = LocalIqExtras.current
-    val profile = remember(game.id, difficultyMode) { AdaptiveDifficultyEngine.initialProfile(game, difficultyMode) }
-    val parameters = AdaptiveDifficultyEngine.parametersFor(game, profile)
+    val readingPrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("reading_gym", android.content.Context.MODE_PRIVATE)
+    var readingLevel by remember(game.id) { mutableIntStateOf(readingPrefs.getInt(game.id, 1).coerceIn(1, 100)) }
+    val profile = remember(game.id, difficultyMode, readingLevel) { AdaptiveDifficultyEngine.initialProfile(game, difficultyMode).let {
+        if (com.indianservers.iqlabs.game.ReadingGym.contains(game.id)) it.copy(tier = readingLevel) else it
+    } }
+    val parameters = AdaptiveDifficultyEngine.parametersFor(game, profile).let { if (com.indianservers.iqlabs.game.ReadingGym.contains(game.id)) it.copy(tier = readingLevel) else it }
     val blueprintStages = remember(game.id) { LevelBlueprint.stagesForCatalogGame(game.id) }
     val enhancements = remember(game.id) { WebNativePack.enhancementsFor(game) }
     val maxLevel = LevelBlueprint.maxLevelFor(game.id)
@@ -467,6 +475,14 @@ private fun GameDetailsScreen(
             }
             item {
                 SoftCard(modifier = Modifier.fillMaxWidth()) {
+                    if (com.indianservers.iqlabs.game.ReadingGym.contains(game.id)) {
+                        Text("Practice level $readingLevel / 100", fontWeight = FontWeight.Bold)
+                        androidx.compose.material3.Slider(value = readingLevel.toFloat(), onValueChange = {
+                            readingLevel = it.toInt().coerceIn(1, 100)
+                            readingPrefs.edit().putInt(game.id, readingLevel).apply()
+                        }, valueRange = 1f..100f, steps = 98)
+                        Text(game.instructions, color = extras.muted)
+                    }
                     Text("Difficulty · Tier ${parameters.tier}/$maxLevel", fontWeight = FontWeight.Bold, fontSize = 18.sp)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         DifficultyMode.entries.forEach { mode ->
@@ -518,10 +534,18 @@ internal fun PlayScreen(
     onComplete: (GameResult) -> Unit,
 ) {
     val extras = LocalIqExtras.current
-    val profile = remember(game.id, difficultyMode) { AdaptiveDifficultyEngine.initialProfile(game, difficultyMode) }
-    val parameters = remember(game.id, difficultyMode) { AdaptiveDifficultyEngine.parametersFor(game, profile) }
+    val readingPrefs = androidx.compose.ui.platform.LocalContext.current.getSharedPreferences("reading_gym", android.content.Context.MODE_PRIVATE)
+    var readingLevel by remember(game.id) { mutableIntStateOf(readingPrefs.getInt(game.id, 1).coerceIn(1, 100)) }
+    val profile = remember(game.id, difficultyMode, readingLevel) { AdaptiveDifficultyEngine.initialProfile(game, difficultyMode).let {
+        if (com.indianservers.iqlabs.game.ReadingGym.contains(game.id)) it.copy(tier = readingLevel) else it
+    } }
+    val parameters = remember(game.id, difficultyMode, readingLevel) { AdaptiveDifficultyEngine.parametersFor(game, profile).let { if (com.indianservers.iqlabs.game.ReadingGym.contains(game.id)) it.copy(tier = readingLevel) else it } }
     val blueprintStage = remember(game.id, parameters.tier) { LevelBlueprint.stageFor(game.id, parameters.tier) }
-    val questions = remember(game.id, seed, parameters.tier) { QuestionFactory.questionsFor(game, seed, 6, parameters.tier) }
+    val questions = remember(game.id, seed, parameters.tier, difficultyMode) {
+        QuestionFactory.questionsFor(game, seed, if (com.indianservers.iqlabs.game.ReadingGym.contains(game.id)) 10 else 6, parameters.tier).map {
+            if (com.indianservers.iqlabs.game.ReadingGym.contains(game.id)) it.copy(field = it.field + (difficultyMode == DifficultyMode.Relaxed).toString()) else it
+        }
+    }
     val maxLevel = LevelBlueprint.maxLevelFor(game.id)
     var started by rememberSaveable { mutableStateOf(true) }
     var paused by rememberSaveable { mutableStateOf(false) }

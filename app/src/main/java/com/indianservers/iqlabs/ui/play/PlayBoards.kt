@@ -150,7 +150,7 @@ fun PlayRound(
             if (style == PlayStyle.Reading) question.prompt else cue,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Black,
-            maxLines = 3,
+            maxLines = if (question.field.firstOrNull() == "reading-gym") 8 else 3,
             overflow = TextOverflow.Ellipsis,
         )
         AnimatedVisibility(adaptiveHint != null) {
@@ -268,6 +268,10 @@ private fun NBackBoard(game: GameDefinition, question: Question, onAnswer: (Stri
 
 @Composable
 private fun ReadingChoices(game: GameDefinition, question: Question, onAnswer: (String) -> Unit) {
+    if (question.field.firstOrNull() == "reading-gym") {
+        ReadingGymBoard(question, onAnswer)
+        return
+    }
     var shown by remember(question.roundKey) { mutableStateOf(question.field.firstOrNull().orEmpty()) }
     var ready by remember(question.roundKey) { mutableStateOf(question.field.isEmpty()) }
     var wordIndex by remember(question.roundKey) { mutableIntStateOf(0) }
@@ -1348,6 +1352,69 @@ private fun GridPlacementBoard(game: GameDefinition, question: Question, onAnswe
             question.choices.forEach { choice ->
                 PlayOrb(label = choice.take(1), color = colourMap[choice] ?: game.accent, modifier = Modifier.weight(1f).height(44.dp), circle = true) {
                     onAnswer(if (choice in valid) question.answer else choice)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReadingGymBoard(question: Question, onAnswer: (String) -> Unit) {
+    val kind = question.field[1].toInt()
+    val relaxed = question.field.getOrNull(7) == "true"
+    val exposure = question.field[3].toLong() * if (relaxed) 2 else 1
+    val level = question.field[6].toInt()
+    var phase by remember(question.roundKey) { mutableIntStateOf(0) }
+    var started by remember(question.roundKey) { mutableStateOf(false) }
+    var seconds by remember(question.roundKey) { mutableIntStateOf(if (relaxed) 90 else 45 - level / 5) }
+    var submitted by remember(question.roundKey) { mutableStateOf(false) }
+    fun submit(answer: String) {
+        if (!submitted) { submitted = true; onAnswer(answer) }
+    }
+    LaunchedEffect(question.roundKey, started) {
+        if (!started) return@LaunchedEffect
+        if (kind == 12) {
+            delay(if (relaxed) 8000 else 4000)
+            phase = 1
+            delay((14000L - level * 60L).coerceAtLeast(7000L))
+        } else if (exposure > 0) {
+            phase = 1
+            delay(exposure)
+        }
+        phase = 2
+    }
+    LaunchedEffect(question.roundKey, started, submitted) {
+        if (!started || submitted) return@LaunchedEffect
+        while (seconds > 0) { delay(1000); seconds-- }
+        submit("Time expired")
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+        Text("Level $level/100 · ${seconds}s · Reading practice", color = LocalIqExtras.current.muted)
+        if (!started) {
+            Text(if (kind == 12) "Remember the sequence, read the passage, then answer both checks." else "Press Start when you are ready.")
+            Button(onClick = { started = true }) { Text("Start challenge") }
+        } else {
+            val visible = when {
+                kind == 12 && phase == 0 -> question.field[4]
+                kind == 12 && phase == 2 -> "Passage hidden. Recall both details."
+                exposure > 0 && phase == 2 -> "Text hidden. Answer from memory."
+                else -> question.field[2]
+            }
+            val color = when(question.field[5]) {
+                "RED" -> Color(0xFFCC2424)
+                "BLUE" -> Color(0xFF1959CC)
+                "GREEN" -> Color(0xFF18753B)
+                "PURPLE" -> Color(0xFF8034B4)
+                else -> MaterialTheme.colorScheme.onSurface
+            }
+            Text(visible, modifier = Modifier.fillMaxWidth().graphicsLayer {
+                scaleX = if (kind == 3) -1f else 1f
+            }.padding(8.dp), color = color, fontSize = if(kind == 11) 36.sp else 18.sp,
+                fontWeight = if(kind == 11) FontWeight.Black else FontWeight.Medium,
+                textAlign = TextAlign.Center)
+            if (phase == 2) question.choices.forEach { choice ->
+                Button(onClick = { submit(choice) }, enabled = !submitted, modifier = Modifier.fillMaxWidth()) {
+                    Text(choice)
                 }
             }
         }
